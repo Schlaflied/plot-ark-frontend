@@ -102,7 +102,10 @@ function App() {
     setIsLoading(true);
     setGeneratedOutline('');
     setError(null);
-    const API_ENDPOINT = 'http://127.0.0.1:5000/api/generate'; 
+    
+    // ⬇️⬇️⬇️ 就是这里！我们把旧的本地地址换成了云端的新家！ ⬇️⬇️⬇️
+    const API_ENDPOINT = 'https://plot-ark-backend-885033581194.us-central1.run.app/api/generate'; 
+    
     try {
       const response = await fetch(API_ENDPOINT, {
         method: 'POST',
@@ -210,7 +213,7 @@ function App() {
                   <h2 className={`text-3xl font-bold mb-4 ${resultTitleClasses}`}>{t.resultTitle}</h2>
                   {/* **关键改动**: 在大纲文本外包裹一个带滚动条的 div */}
                   <div className="max-h-[70vh] overflow-y-auto pr-3">
-                     <div className={`prose max-w-none whitespace-pre-wrap leading-relaxed ${resultTextClasses}`}>{generatedOutline}</div>
+                      <div className={`prose max-w-none whitespace-pre-wrap leading-relaxed ${resultTextClasses}`}>{generatedOutline}</div>
                   </div>
                 </div>
               )}
@@ -224,3 +227,4 @@ function App() {
 }
 
 export default App;
+
