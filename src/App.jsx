@@ -20,7 +20,6 @@ const CloseIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" width="24" heig
 const translations = {
     'zh-CN': {
         title: "灵感方舟 🚀", subtitle: "输入CP设定与梗概，生成专属你的故事大纲", char1Label: "角色 1", char2Label: "角色 2", genderLabel: "性别", genderOptions: { male: '男', female: '女', nonbinary: '无性别', unspecified: '未指定' }, promptLabel: "核心梗 / 场景", submitButton: "启动方舟", generatingButton: "生成中...", resultTitle: "生成的大纲", errorPrefix: "出错啦", errorConnect: "生成大纲时遇到问题，请检查后端服务是否正常运行。", langToggle: "Switch to English", variantToggle: "切换到繁体", themeToggle: "切换主题", 
-        // ✨✨✨ 在这里修改引导词 ✨✨✨
         char1Default: "例如：亚修·林克斯，一个在纽约街头长大、背景复杂、魅力超凡的金发少年…",
         char2Default: "例如：奥村英二，一位善良的日本摄影师，他成为了亚修生命中坚定不移的光…",
         promptDefault: "例如：如果多年以后，他们在现代日本重逢，而亚修失去了记忆，会发生什么？",
@@ -218,7 +217,5 @@ function App() {
   );
 }
 
-export default App;
-
-
+// ✨✨✨ 保证这里只有一个 export default ✨✨✨
 export default App;
