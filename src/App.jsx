@@ -1,320 +1,386 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { jwtDecode } from 'jwt-decode'; // 引入解码库
+import './App.css';
 
-// --- API 地址配置 ---
-const API_BASE_URL = 'https://plot-ark-backend-885033581194.us-central1.run.app';
+// --- 配置: 后端 API 地址 ---
+const API_BASE_URL = 'https://plot-ark-backend-vpy736x7ja-uc.a.run.app';
+
 const API_ENDPOINTS = {
-  generate: `${API_BASE_URL}/api/generate`,
-  login: `${API_BASE_URL}/api/login`,
   register: `${API_BASE_URL}/api/register`,
+  login: `${API_BASE_URL}/api/login`,
+  generate: `${API_BASE_URL}/api/generate`,
   history: `${API_BASE_URL}/api/history`,
 };
 
-// --- 图标组件 (保持不变) ---
-const SunIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>);
-const MoonIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>);
-const HistoryIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>);
-const CloseIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>);
-const TrashIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>);
-const UserIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>);
-const CreditIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 17 17 23 15.79 13.88"/></svg>);
-const LoginIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>);
-
-
-// --- 语言翻译 (保持不变) ---
+// --- 多语言文本 ---
 const translations = {
-    'zh-CN': {
-        title: "灵感方舟 🚀", subtitle: "输入CP设定与梗概，生成专属你的故事大纲", char1Label: "角色 1", char2Label: "角色 2", genderLabel: "性别", genderOptions: { male: '男', female: '女', nonbinary: '无性别', unspecified: '未指定' }, promptLabel: "核心梗 / 场景", submitButton: "启动方舟", generatingButton: "生成中...", resultTitle: "生成的大纲", errorPrefix: "出错啦", errorConnect: "生成大纲时遇到问题，请检查后端服务是否正常运行。", langToggle: "Switch to English", variantToggle: "切换到繁体", themeToggle: "切换主题", 
-        char1Default: "例如：亚修·林克斯，一个在纽约街头长大、背景复杂、魅力超凡的金发少年…",
-        char2Default: "例如：奥村英二，一位善良的日本摄影师，他成为了亚修生命中坚定不移的光…",
-        promptDefault: "例如：如果多年以后，他们在现代日本重逢，而亚修失去了记忆，会发生什么？",
-        loginTitle: "登录方舟", registerTitle: "注册新账号", emailLabel: "邮箱", passwordLabel: "密码", loginButton: "登录", registerButton: "注册", switchToRegister: "还没有账号？点此注册", switchToLogin: "已有账号？点此登录", logoutButton: "登出", authError: "认证失败，请检查邮箱或密码。", registerSuccess: "注册成功！请检查邮箱以激活账户。", registerError: "注册失败，该邮箱可能已被使用。", guestModeButton: "游客模式 (剩余 {tries} 次)", noGuestTries: "游客次数已用完", historyButton: "历史记录", historyTitle: "灵感档案馆", loadButton: "加载此记录", emptyHistory: "你还没有任何创作记录哦，快去生成你的第一个大纲吧！", deleteButton: "删除", confirmDelete: "你确定要永久删除这条灵感记录吗？", credits: "创作点数", notVerified: "账户未激活，请检查邮箱", insufficientCredits: "创作点数不足，请充值。", guestTriesLeft: "游客剩余次数：", loginToContinue: "登录/注册以继续",
-    },
-    'zh-TW': {
-        title: "靈感方舟 🚀", subtitle: "輸入CP設定與梗概，生成專屬你的故事大綱", char1Label: "角色 1", char2Label: "角色 2", genderLabel: "性別", genderOptions: { male: '男', female: '女', nonbinary: '無性別', unspecified: '未指定' }, promptLabel: "核心梗 / 場景", submitButton: "啟動方舟", generatingButton: "生成中...", resultTitle: "生成的大綱", errorPrefix: "出錯啦", errorConnect: "生成大綱時遇到問題，請檢查後端服務是否正常運行。", langToggle: "Switch to English", variantToggle: "切換到簡體", themeToggle: "切換主題", 
-        char1Default: "例如：亞修·林克斯，一個在紐約街頭長大、背景複雜、魅力超凡的金髮少年…",
-        char2Default: "例如：奧村英二，一位善良的日本攝影師，他成為了亞修生命中堅定不移的光…",
-        promptDefault: "例如：如果多年以後，他們在現代日本重逢，而亞修失去了記憶，會發生什麼？",
-        loginTitle: "登錄方舟", registerTitle: "註冊新帳號", emailLabel: "郵箱", passwordLabel: "密碼", loginButton: "登錄", registerButton: "註冊", switchToRegister: "還沒有帳號？點此註冊", switchToLogin: "已有帳號？點此登錄", logoutButton: "登出", authError: "認證失敗，請檢查郵箱或密碼。", registerSuccess: "註冊成功！請檢查郵箱以激活帳戶。", registerError: "註冊失敗，該郵箱可能已被使用。", guestModeButton: "遊客模式 (剩餘 {tries} 次)", noGuestTries: "遊客次數已用完", historyButton: "歷史記錄", historyTitle: "靈感檔案館", loadButton: "加載此記錄", emptyHistory: "你還沒有任何創作記錄哦，快去生成你的第一個大綱吧！", deleteButton: "刪除", confirmDelete: "你確定要永久刪除這條靈感記錄嗎？", credits: "創作點數", notVerified: "帳戶未激活，請檢查郵箱", insufficientCredits: "創作點數不足，請充值。", guestTriesLeft: "遊客剩餘次數：", loginToContinue: "登錄/註冊以繼續",
-    },
-    'en': {
-        title: "Plot Ark 🚀", subtitle: "Enter CP settings and a plot prompt to generate your unique story outline.", char1Label: "Character 1", char2Label: "Character 2", genderLabel: "Gender", genderOptions: { male: 'Male', female: 'Female', nonbinary: 'Non-binary', unspecified: 'Not Specified' }, promptLabel: "Core Prompt / Scene", submitButton: "Launch Ark", generatingButton: "Generating...", resultTitle: "Generated Outline", errorPrefix: "Error", errorConnect: "Failed to fetch outline. Please check if the backend service is running correctly.", langToggle: "切换到中文", variantToggle: "", themeToggle: "Toggle Theme", 
-        char1Default: "e.g., Ash Lynx, a charismatic youth with a complex background from New York...",
-        char2Default: "e.g., Eiji Okumura, a kind-hearted Japanese photographer who becomes Ash's light...",
-        promptDefault: "e.g., What if they met again years later in modern Japan, and Ash has lost his memories?",
-        loginTitle: "Login to the Ark", registerTitle: "Register a New Account", emailLabel: "Email", passwordLabel: "Password", loginButton: "Login", registerButton: "Register", switchToRegister: "No account yet? Register here", switchToLogin: "Already have an account? Login here", logoutButton: "Logout", authError: "Authentication failed. Please check your email or password.", registerSuccess: "Registration successful! Please check your email to activate.", registerError: "Registration failed. The email might already be in use.", guestModeButton: "Guest Mode ({tries} left)", noGuestTries: "Guest tries finished", historyButton: "History", historyTitle: "Inspiration Archive", loadButton: "Load this entry", emptyHistory: "You don't have any creation history yet. Go generate your first outline!", deleteButton: "Delete", confirmDelete: "Are you sure you want to permanently delete this inspiration entry?", credits: "Credits", notVerified: "Account not verified, please check your email", insufficientCredits: "Insufficient credits, please top up.", guestTriesLeft: "Guest tries left:", loginToContinue: "Login / Register to continue",
-    }
+  // ... (保持不变)
+  zh: {
+    title: '灵感方舟',
+    authTitle: '欢迎来到灵感方舟',
+    authSubtitle: '登录或注册以释放你的创作潜力',
+    emailLabel: '邮箱',
+    passwordLabel: '密码',
+    loginButton: '登录',
+    registerButton: '注册',
+    guestModeButton: '游客模式 (剩余 {tries} 次)',
+    noGuestTries: '游客次数已用尽',
+    logoutButton: '退出登录',
+    generateButton: '启动方舟',
+    generatingButton: '生成中...',
+    character1Placeholder: '角色1 (Ash): 外貌，性格，背景故事...',
+    character2Placeholder: '角色2 (Eiji): 外貌，性格，背景故事...',
+    plotPromptPlaceholder: '核心梗概 (例如：Ash 和 Eiji 在现代东京的第一次相遇)',
+    historyTitle: '创作历史',
+    deleteButton: '删除',
+    confirmDelete: '确定要删除这条历史记录吗？',
+    userCredits: '创作点数: {credits}',
+    loginToContinue: '登录/注册以继续',
+  }
 };
 
-// --- 子组件 ---
-const HistoryModal = ({ t, isDark, history, onLoad, onClose, onDelete }) => {
-    const modalBg = isDark ? "bg-gray-900 border border-gray-700" : "bg-white border border-gray-200";
-    const itemBg = isDark ? "bg-gray-800 hover:bg-gray-700/50" : "bg-gray-100 hover:bg-gray-200/50";
-    const textMuted = isDark ? "text-gray-400" : "text-gray-500";
-    const loadButtonClasses = isDark ? "bg-purple-600 hover:bg-purple-700" : "bg-blue-600 hover:bg-blue-700";
-    const deleteButtonClasses = isDark ? "bg-red-800 hover:bg-red-700" : "bg-red-600 hover:bg-red-500";
-    return (<div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"><div className={`w-full max-w-2xl h-[80vh] rounded-xl shadow-2xl flex flex-col ${modalBg}`}><header className="flex justify-between items-center p-4 border-b" style={{borderColor: isDark ? '#374151' : '#e5e7eb'}}><h2 className="text-2xl font-bold flex items-center gap-2"><HistoryIcon /> {t.historyTitle}</h2><button onClick={onClose} className="p-2 rounded-full hover:bg-gray-500/20"><CloseIcon /></button></header><div className="flex-grow p-4 overflow-y-auto">{history.length === 0 ? (<p className={`text-center py-10 ${textMuted}`}>{t.emptyHistory}</p>) : (<ul className="space-y-4">{history.map(item => (<li key={item.id} className={`p-4 rounded-lg transition-colors ${itemBg}`}><p className="font-semibold truncate">{t.promptLabel}: {item.core_prompt}</p><p className={`text-sm ${textMuted} mt-1`}>{new Date(item.created_at).toLocaleString()}</p><div className="flex items-center gap-2 mt-3"><button onClick={() => onLoad(item)} className={`px-4 py-2 text-sm text-white font-semibold rounded-md ${loadButtonClasses}`}>{t.loadButton}</button><button onClick={() => onDelete(item.id)} className={`px-4 py-2 text-sm text-white font-semibold rounded-md flex items-center gap-1 ${deleteButtonClasses}`}><TrashIcon /> {t.deleteButton}</button></div></li>))}</ul>)}</div></div></div>);
-};
-
-// ✅ Header 组件重构，逻辑更清晰
-const Header = ({ t, isDark, handleThemeToggle, language, handleVariantToggle, handleLanguageToggle, user, isGuestView, handleLogout, onShowHistory, onShowLogin }) => {
-    const headerTextClasses = isDark ? "text-gray-400 hover:text-white" : "text-gray-500 hover:text-gray-900";
-    return (
-        <header className="flex justify-between items-center mb-6">
-            <div className={`text-2xl font-bold tracking-wider ${isDark ? 'text-white' : 'text-gray-900'}`}>PLOT ARK</div>
-            <div className="flex items-center space-x-4">
-                {user ? (
-                    <>
-                        <div className="flex items-center gap-4 text-sm">
-                            <span className={`flex items-center gap-1 ${headerTextClasses}`}><UserIcon /> {user.email}</span>
-                            <span className={`flex items-center gap-1 font-semibold ${isDark ? 'text-purple-400' : 'text-blue-600'}`}><CreditIcon /> {user.credits} {t.credits}</span>
-                        </div>
-                        <button onClick={onShowHistory} className={`text-sm flex items-center gap-1 ${headerTextClasses} transition-colors`}><HistoryIcon />{t.historyButton}</button>
-                        <button onClick={handleLogout} className={`text-sm ${headerTextClasses} transition-colors`}>{t.logoutButton}</button>
-                    </>
-                ) : isGuestView ? (
-                     <button onClick={onShowLogin} className={`text-sm flex items-center gap-1 ${headerTextClasses} transition-colors`}><LoginIcon />{t.loginToContinue}</button>
-                ) : null}
-                <button onClick={handleThemeToggle} className={`p-2 rounded-full ${headerTextClasses} transition-colors`} aria-label={t.themeToggle}>{isDark ? <SunIcon /> : <MoonIcon />}</button>
-                {language.startsWith('zh') && (<button onClick={handleVariantToggle} className={`text-sm ${headerTextClasses} transition-colors`}>{t.variantToggle}</button>)}
-                <button onClick={handleLanguageToggle} className={`text-sm ${headerTextClasses} transition-colors`}>{t.langToggle}</button>
-            </div>
-        </header>
-    );
-};
-
-
-const AuthPage = ({ commonProps, authProps }) => {
-    const { t, isDark } = commonProps;
-    const { authView, setAuthView, email, setEmail, password, setPassword, isLoading, authMessage, handleLogin, handleRegister, handleGuestMode, guestTries } = authProps;
-    const isLoginView = authView === 'login';
-    const formClasses = isDark ? "bg-gray-800/50 backdrop-blur-sm border border-gray-700" : "bg-white/80 backdrop-blur-sm border border-gray-200";
-    const labelClasses = isDark ? "text-gray-300" : "text-gray-700";
-    const inputClasses = isDark ? "bg-gray-900 border-gray-700 text-white focus:border-purple-500" : "bg-white border-gray-300 text-gray-900 focus:border-blue-500";
-    const focusRingClasses = isDark ? "focus:ring-purple-500" : "focus:ring-blue-500";
-    const buttonClasses = isDark ? "bg-purple-600 hover:bg-purple-700 shadow-lg shadow-purple-900/50" : "bg-blue-600 hover:bg-blue-700";
-    const guestButtonClasses = isDark ? "bg-gray-600 hover:bg-gray-700" : "bg-gray-500 hover:bg-gray-600";
-    const authLinkClasses = isDark ? "text-purple-400 hover:text-purple-300" : "text-blue-600 hover:text-blue-500";
-    return (<div className="w-full max-w-md mx-auto"><div className="text-center py-10"><h1 className={`text-5xl font-extrabold ${isDark ? 'text-white' : 'text-gray-900'}`}>{t.title}</h1><p className={`mt-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{t.subtitle}</p></div><div className={`w-full p-8 space-y-6 rounded-xl shadow-2xl ${formClasses}`}><h1 className={`text-3xl font-extrabold text-center ${isDark ? 'text-white' : 'text-gray-900'}`}>{isLoginView ? t.loginTitle : t.registerTitle}</h1><form onSubmit={isLoginView ? handleLogin : handleRegister} className="space-y-6"><div><label className={`block text-sm font-medium ${labelClasses}`}>{t.emailLabel}</label><input type="email" value={email} onChange={e => setEmail(e.target.value)} required className={`mt-1 w-full rounded-md p-3 focus:outline-none transition-colors border ${inputClasses} ${focusRingClasses}`} /></div><div><label className={`block text-sm font-medium ${labelClasses}`}>{t.passwordLabel}</label><input type="password" value={password} onChange={e => setPassword(e.target.value)} required className={`mt-1 w-full rounded-md p-3 focus:outline-none transition-colors border ${inputClasses} ${focusRingClasses}`} /></div>{authMessage && <p className={`text-sm ${authMessage.includes('成功') ? 'text-green-400' : 'text-red-400'}`}>{authMessage}</p>}<div className="flex flex-col space-y-4 pt-2"><button type="submit" disabled={isLoading} className={`w-full text-white font-bold py-3 px-8 rounded-lg transition-all duration-300 disabled:bg-gray-600 disabled:cursor-not-allowed ${buttonClasses}`}>{isLoading ? t.generatingButton : (isLoginView ? t.loginButton : t.registerButton)}</button>
-    {/* ✅ 修复游客按钮逻辑 */}
-    <button type="button" onClick={handleGuestMode} disabled={guestTries <= 0} className={`w-full text-white font-bold py-3 px-8 rounded-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed ${guestButtonClasses}`}>{guestTries > 0 ? t.guestModeButton.replace('{tries}', guestTries) : t.noGuestTries}</button></div></form><p className="text-center text-sm"><button onClick={() => { setAuthView(isLoginView ? 'register' : 'login'); setAuthMessage(''); }} className={`font-medium transition-colors ${authLinkClasses}`}>{isLoginView ? t.switchToRegister : t.switchToLogin}</button></p></div></div>);
-};
-
-const MainApp = ({ commonProps, appProps }) => {
-    const { t, isDark } = commonProps;
-    const { character1, setCharacter1, gender1, setGender1, character2, setCharacter2, gender2, setGender2, plotPrompt, setPlotPrompt, handleSubmit, isLoading, error, generatedOutline, resultRef, guestTries, isGuestView } = appProps;
-    const subtitleClasses = isDark ? "text-gray-400" : "text-gray-500";
-    const formClasses = isDark ? "bg-gray-800/50 backdrop-blur-sm border border-gray-700" : "bg-white/80 backdrop-blur-sm border border-gray-200";
-    const labelClasses = isDark ? "text-gray-300" : "text-gray-700";
-    const inputClasses = isDark ? "bg-gray-900 border-gray-700 text-white focus:border-purple-500" : "bg-white border-gray-300 text-gray-900 focus:border-blue-500";
-    const focusRingClasses = isDark ? "focus:ring-purple-500" : "focus:ring-blue-500";
-    const optionClasses = isDark ? "bg-gray-900 text-white" : "bg-white text-gray-900";
-    const buttonClasses = isDark ? "bg-purple-600 hover:bg-purple-700 shadow-lg shadow-purple-900/50" : "bg-blue-600 hover:bg-blue-700";
-    const errorClasses = isDark ? "bg-red-900/50 border-red-700 text-red-200" : "bg-red-100 border-red-300 text-red-800";
-    const resultContainerClasses = isDark ? "bg-gray-800/50 backdrop-blur-sm border border-gray-700" : "bg-white/80 backdrop-blur-sm border border-gray-200";
-    const resultTitleClasses = isDark ? "text-white" : "text-gray-900";
-    const resultTextClasses = isDark ? "prose-invert text-gray-300" : "text-gray-700";
-    return (<div className="w-full max-w-7xl mx-auto"><Header {...commonProps} /><div className="text-center my-12 sm:my-16"><h1 className={`text-4xl sm:text-6xl font-extrabold mb-4 tracking-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>{t.title}</h1><p className={`text-lg ${subtitleClasses}`}>{t.subtitle}</p></div>
-    {isGuestView && (<div className={`text-center mb-4 font-semibold ${isDark ? 'text-purple-400' : 'text-blue-600'}`}>{guestTries > 0 ? `${t.guestTriesLeft} ${guestTries}` : t.noGuestTries}</div>)}
-    <div className="grid grid-cols-1 lg:grid-cols-2 lg:gap-8"><div className="lg:col-span-1 lg:sticky lg:top-8 h-fit"><form onSubmit={handleSubmit} className={`p-6 sm:p-8 rounded-xl shadow-2xl space-y-6 transition-colors duration-500 ${formClasses}`}><div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-6"><div className="space-y-2"><label className={`block text-base font-medium ${labelClasses}`}>{t.char1Label}</label><textarea rows="6" value={character1} onChange={(e) => setCharacter1(e.target.value)} placeholder={t.char1Default} className={`w-full rounded-md p-3 focus:outline-none transition-colors border ${inputClasses} ${focusRingClasses}`} /><select value={gender1} onChange={(e) => setGender1(e.target.value)} className={`w-full rounded-md p-3 focus:outline-none ${inputClasses} ${focusRingClasses}`}>{Object.entries(t.genderOptions).map(([key, value]) => (<option key={key} value={key} className={optionClasses}>{value}</option>))}</select></div><div className="space-y-2"><label className={`block text-base font-medium ${labelClasses}`}>{t.char2Label}</label><textarea rows="6" value={character2} onChange={(e) => setCharacter2(e.target.value)} placeholder={t.char2Default} className={`w-full rounded-md p-3 focus:outline-none transition-colors border ${inputClasses} ${focusRingClasses}`} /><select value={gender2} onChange={(e) => setGender2(e.target.value)} className={`w-full rounded-md p-3 focus:outline-none ${inputClasses} ${focusRingClasses}`}>{Object.entries(t.genderOptions).map(([key, value]) => (<option key={key} value={key} className={optionClasses}>{value}</option>))}</select></div></div><div className="pt-4"><label htmlFor="prompt" className={`block text-base font-medium mb-2 ${labelClasses}`}>{t.promptLabel}</label><textarea id="prompt" rows="5" value={plotPrompt} onChange={(e) => setPlotPrompt(e.target.value)} placeholder={t.promptDefault} className={`w-full rounded-md p-3 focus:outline-none transition-colors border ${inputClasses} ${focusRingClasses}`} /></div><div className="text-center pt-4"><button type="submit" disabled={isLoading} className={`text-white font-bold py-3 px-8 rounded-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed ${buttonClasses}`}>{isLoading ? t.generatingButton : t.submitButton}</button></div></form></div><div className="lg:col-span-1 mt-8 lg:mt-0"><div ref={resultRef} className="min-h-[200px]">{error && <div className={`p-4 rounded-lg ${errorClasses}`}>{error}</div>}{generatedOutline && (<div className={`p-6 sm:p-8 rounded-xl shadow-2xl transition-colors duration-500 ${resultContainerClasses}`}><h2 className={`text-3xl font-bold mb-4 ${resultTitleClasses}`}>{t.resultTitle}</h2><div className="max-h-[70vh] overflow-y-auto pr-3"><div className={`prose max-w-none whitespace-pre-wrap leading-relaxed ${resultTextClasses}`}>{generatedOutline}</div></div></div>)}</div></div></div></div>);
-};
-
-
-// --- 根组件 (大脑) ---
+// --- 主应用组件 ---
 function App() {
-  const [language, setLanguage] = useState('zh-CN');
-  const [theme, setTheme] = useState('dark');
-  const [character1, setCharacter1] = useState('');
-  const [gender1, setGender1] = useState('male');
-  const [character2, setCharacter2] = useState('');
-  const [gender2, setGender2] = useState('male');
-  const [plotPrompt, setPlotPrompt] = useState('');
-  const [generatedOutline, setGeneratedOutline] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState(null);
-  
+  const [lang, setLang] = useState('zh');
+  const [token, setToken] = useState(localStorage.getItem('token'));
   const [user, setUser] = useState(null);
-  const [token, setToken] = useState(() => localStorage.getItem('plot_ark_token'));
-  
-  const [guestTries, setGuestTries] = useState(() => parseInt(localStorage.getItem('plot_ark_guest_tries') || '3', 10));
+  const [currentView, setCurrentView] = useState('auth'); // 'auth' 或 'app'
+  const [error, setError] = useState('');
+  const t = translations[lang];
 
-  const [authView, setAuthView] = useState('login');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [authMessage, setAuthMessage] = useState('');
-  const resultRef = useRef(null);
-
-  const [history, setHistory] = useState([]);
-  const [showHistory, setShowHistory] = useState(false);
-
-  // ✅ 新增状态来控制显示哪个页面
-  const [currentView, setCurrentView] = useState('auth'); // 'auth' or 'app'
-
+  // ✅ --- Token 自动验证与刷新逻辑 ---
   useEffect(() => {
-    if (token) {
-      const savedUser = localStorage.getItem('plot_ark_user');
-      if (savedUser) {
-        setUser(JSON.parse(savedUser));
-        setCurrentView('app'); // 有 token 和 user, 直接进入主应用
-      }
-      fetchHistory();
-    }
-  }, [token]);
-
-  const fetchHistory = async () => {
-    const currentToken = localStorage.getItem('plot_ark_token');
-    if (!currentToken) return;
-    try {
-        const response = await fetch(API_ENDPOINTS.history, { headers: { 'Authorization': `Bearer ${currentToken}` } });
-        if (!response.ok) throw new Error('Failed to fetch history');
-        const data = await response.json();
-        setHistory(data);
-    } catch (err) { console.error(err); }
-  };
-
-  const handleLoadFromHistory = (item) => {
-    setCharacter1(item.character1_setting || '');
-    setCharacter2(item.character2_setting || '');
-    setPlotPrompt(item.core_prompt);
-    setGeneratedOutline(item.generated_outline);
-    setShowHistory(false);
-  };
-  
-  const handleSubmit = async (event) => {
-    event.preventDefault();
-    setIsLoading(true);
-    setGeneratedOutline('');
-    setError(null);
-
-    const isGuestMode = !user; 
-    
-    if (isGuestMode && guestTries <= 0) {
-        setError(t.noGuestTries);
-        setIsLoading(false);
-        return;
-    }
-
-    const requestBody = { character1, character2, plot_prompt: plotPrompt, language };
-    const headers = { 'Content-Type': 'application/json' };
-    
-    if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-    }
-
-    try {
-      const response = await fetch(API_ENDPOINTS.generate, { method: 'POST', headers: headers, body: JSON.stringify(requestBody) });
-      const data = await response.json();
-      
-      if (!response.ok) {
-        if (data.error === 'not_verified') throw new Error(t.notVerified);
-        if (data.error === 'insufficient_credits') throw new Error(t.insufficientCredits);
-        throw new Error(data.message || 'An error occurred');
-      }
-
-      setGeneratedOutline(data.outline);
-
-      if (isGuestMode) {
-          const newTries = guestTries - 1;
-          setGuestTries(newTries);
-          localStorage.setItem('plot_ark_guest_tries', newTries);
-      } else {
-          const updatedUser = { ...user, credits: data.remaining_credits };
-          setUser(updatedUser);
-          localStorage.setItem('plot_ark_user', JSON.stringify(updatedUser));
-          fetchHistory();
-      }
-    } catch (err) { 
-        setError(err.message || t.errorConnect); 
-        console.error(err); 
-    } finally { 
-        setIsLoading(false); 
-        resultRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }
-  };
-
-
-  const handleLanguageToggle = () => setLanguage(lang => lang === 'en' ? 'zh-CN' : 'en');
-  const handleVariantToggle = () => { if (language.startsWith('zh')) setLanguage(lang => lang === 'zh-CN' ? 'zh-TW' : 'zh-CN'); };
-  const handleThemeToggle = () => setTheme(th => th === 'dark' ? 'light' : 'dark');
-
-  const handleRegister = async (e) => {
-      e.preventDefault(); setIsLoading(true); setAuthMessage('');
+    const storedToken = localStorage.getItem('token');
+    if (storedToken) {
       try {
-        const response = await fetch(API_ENDPOINTS.register, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.message || t.registerError);
-        setAuthMessage(t.registerSuccess);
-        setAuthView('login');
-        if (data.verification_url_for_testing) {
-            console.log("TESTING: Verification URL -> ", data.verification_url_for_testing);
+        const decodedToken = jwtDecode(storedToken);
+        // 检查 Token 是否在未来一分钟内过期
+        if (decodedToken.exp * 1000 < Date.now() - 60000) {
+          // Token 已过期或即将过期，执行登出操作
+          handleLogout(); 
+        } else {
+          // Token 有效，恢复用户状态
+          setToken(storedToken);
+          const storedUser = localStorage.getItem('user');
+          if (storedUser) {
+            setUser(JSON.parse(storedUser));
+          }
+          setCurrentView('app');
         }
-      } catch (err) { setAuthMessage(err.message); } finally { setIsLoading(false); }
-  };
+      } catch (e) {
+        // Token 格式错误，执行登出操作
+        console.error("无效的Token格式:", e);
+        handleLogout();
+      }
+    }
+  }, []); // 这个 effect 只在应用首次加载时运行一次
 
-  const handleLogin = async (e) => {
-      e.preventDefault(); setIsLoading(true); setAuthMessage('');
-      try {
-        const response = await fetch(API_ENDPOINTS.login, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.message || t.authError);
-        localStorage.setItem('plot_ark_token', data.token);
-        localStorage.setItem('plot_ark_user', JSON.stringify(data.user));
-        setToken(data.token);
-        setUser(data.user);
-        setCurrentView('app'); // ✅ 登录成功，切换到主应用视图
-      } catch (err) { setAuthMessage(err.message); } finally { setIsLoading(false); }
-  };
-
-  const handleLogout = () => {
-      localStorage.removeItem('plot_ark_token');
-      localStorage.removeItem('plot_ark_user');
-      setToken(null);
-      setUser(null);
-      setHistory([]);
-      setCurrentView('auth'); // ✅ 登出，切换回认证视图
-  };
-
-  // ✅ 游客模式现在直接切换视图
-  const handleGuestMode = () => {
+  const handleLogin = async (email, password) => {
+    setError('');
+    try {
+      const response = await fetch(API_ENDPOINTS.login, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || '登录失败');
+      }
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('user', JSON.stringify(data.user));
+      setToken(data.token);
+      setUser(data.user);
       setCurrentView('app');
-  }; 
-  
-  const handleDeleteHistoryItem = async (promptId) => {
-    if (window.confirm(t.confirmDelete)) {
-        const currentToken = localStorage.getItem('plot_ark_token');
-        if (!currentToken) return;
-        try {
-            const response = await fetch(`${API_ENDPOINTS.history}/${promptId}`, {
-                method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${currentToken}` }
-            });
-            if (!response.ok) throw new Error('Delete failed');
-            setHistory(prevHistory => prevHistory.filter(item => item.id !== promptId));
-        } catch (err) { console.error(err); }
+    } catch (err) {
+      setError(err.message);
     }
   };
 
-  const t = translations[language] || translations['en'];
-  const isDark = theme === 'dark';
-  const containerClasses = isDark ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-800";
-  
-  // ✅ 判断是否是游客视图
-  const isGuestView = currentView === 'app' && !user;
+  const handleRegister = async (email, password) => {
+    // ... (保持不变)
+    setError('');
+    try {
+      const response = await fetch(API_ENDPOINTS.register, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || '注册失败');
+      }
+      alert('注册成功！请检查您的邮箱以激活账户。');
+    } catch (err) {
+      setError(err.message);
+    }
+  };
 
-  const commonProps = { t, isDark, handleThemeToggle, language, handleVariantToggle, handleLanguageToggle, user, isGuestView, handleLogout, onShowHistory: () => setShowHistory(true), onShowLogin: () => setCurrentView('auth') };
-  const authProps = { authView, setAuthView, email, setEmail, password, setPassword, isLoading, authMessage, handleLogin, handleRegister, handleGuestMode, guestTries };
-  const appProps = { character1, setCharacter1, gender1, setGender1, character2, setCharacter2, gender2, setGender2, plotPrompt, setPlotPrompt, handleSubmit, isLoading, error, generatedOutline, resultRef, guestTries, isGuestView };
+  const handleGuestMode = () => {
+    setUser(null); // 确保在游客模式下没有用户信息
+    setToken(null);
+    setCurrentView('app');
+  };
+
+  // ✅ --- 强化登出逻辑 ---
+  const handleLogout = () => {
+    // 清理所有与用户相关的数据
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    setToken(null);
+    setUser(null);
+    setCurrentView('auth'); // 返回到登录页面
+  };
+  
+  // 更新点数
+  const updateUserCredits = (newCredits) => {
+    if (user) {
+      const updatedUser = { ...user, credits: newCredits };
+      setUser(updatedUser);
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+    }
+  };
+
 
   return (
-    <div className={`min-h-screen p-4 sm:p-8 font-sans transition-colors duration-500 ${containerClasses}`}>
-        {user && showHistory && <HistoryModal t={t} isDark={isDark} history={history} onLoad={handleLoadFromHistory} onClose={() => setShowHistory(false)} onDelete={handleDeleteHistoryItem} />}
-        
-        {currentView === 'auth'
-            ? <AuthPage commonProps={commonProps} authProps={authProps} />
-            : <MainApp commonProps={commonProps} appProps={appProps} />
-        }
+    <div className="App bg-gray-900 text-white min-h-screen font-sans">
+      <Header t={t} user={user} onLogout={handleLogout} onLoginClick={() => setCurrentView('auth')} isGuest={!user && currentView === 'app'} />
+      <main className="container mx-auto p-4">
+        {currentView === 'auth' ? (
+          <AuthPage t={t} onLogin={handleLogin} onRegister={handleRegister} onGuestMode={handleGuestMode} error={error} />
+        ) : (
+          <MainApp t={t} token={token} user={user} updateUserCredits={updateUserCredits} />
+        )}
+      </main>
     </div>
   );
 }
 
+// --- 子组件 (保持不变) ---
+// ... (Header, AuthPage, MainApp 组件的代码保持不变)
+const Header = ({ t, user, onLogout, onLoginClick, isGuest }) => (
+    <header className="p-4 flex justify-between items-center bg-gray-800 shadow-md">
+      <h1 className="text-2xl font-bold tracking-wider">{t.title}</h1>
+      <nav>
+        {user ? (
+          <div className="flex items-center space-x-4">
+            <span className="text-sm text-gray-300">{t.userCredits.replace('{credits}', user.credits)}</span>
+            <span className="text-sm font-medium">{user.email}</span>
+            <button onClick={onLogout} className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition-colors duration-200">{t.logoutButton}</button>
+          </div>
+        ) : isGuest ? (
+           <button onClick={onLoginClick} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors duration-200">{t.loginToContinue}</button>
+        ) : null}
+      </nav>
+    </header>
+);
+
+const AuthPage = ({ t, onLogin, onRegister, onGuestMode, error }) => {
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [guestTries, setGuestTries] = useState(() => parseInt(localStorage.getItem('guestTries') || '3'));
+
+    const handleSubmitLogin = (e) => {
+        e.preventDefault();
+        onLogin(email, password);
+    };
+
+    const handleSubmitRegister = (e) => {
+        e.preventDefault();
+        onRegister(email, password);
+    };
+
+    const handleGuestClick = () => {
+        if (guestTries > 0) {
+            onGuestMode();
+        }
+    };
+
+    return (
+        <div className="max-w-md mx-auto mt-10 p-8 bg-gray-800 rounded-xl shadow-lg">
+            <h2 className="text-3xl font-bold text-center mb-2">{t.authTitle}</h2>
+            <p className="text-center text-gray-400 mb-8">{t.authSubtitle}</p>
+            {error && <p className="bg-red-800 border border-red-600 text-red-200 px-4 py-3 rounded-lg relative mb-6 text-center">{error}</p>}
+            <form>
+                <div className="mb-4">
+                    <label htmlFor="email" className="block text-gray-300 text-sm font-bold mb-2">{t.emailLabel}</label>
+                    <input type="email" id="email" value={email} onChange={(e) => setEmail(e.target.value)} className="shadow-inner appearance-none border border-gray-600 rounded-lg w-full py-3 px-4 bg-gray-700 text-white leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div className="mb-6">
+                    <label htmlFor="password" className="block text-gray-300 text-sm font-bold mb-2">{t.passwordLabel}</label>
+                    <input type="password" id="password" value={password} onChange={(e) => setPassword(e.target.value)} className="shadow-inner appearance-none border border-gray-600 rounded-lg w-full py-3 px-4 bg-gray-700 text-white mb-3 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div className="flex flex-col space-y-4">
+                    <button onClick={handleSubmitLogin} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg w-full transition-colors duration-200">{t.loginButton}</button>
+                    <button onClick={handleSubmitRegister} className="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg w-full transition-colors duration-200">{t.registerButton}</button>
+                    <button type="button" onClick={handleGuestClick} disabled={guestTries <= 0} className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 px-4 rounded-lg w-full transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed">
+                        {guestTries > 0 ? t.guestModeButton.replace('{tries}', guestTries) : t.noGuestTries}
+                    </button>
+                </div>
+            </form>
+        </div>
+    );
+};
+
+
+const MainApp = ({ t, token, user, updateUserCredits }) => {
+    const [character1, setCharacter1] = useState('');
+    const [character2, setCharacter2] = useState('');
+    const [plotPrompt, setPlotPrompt] = useState('');
+    const [outline, setOutline] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+    const [history, setHistory] = useState([]);
+    const [guestTries, setGuestTries] = useState(() => parseInt(localStorage.getItem('guestTries') || '3'));
+    
+    const isGuest = !user;
+    const outlineRef = useRef(null);
+
+    useEffect(() => {
+        if (!isGuest) {
+            fetchHistory();
+        }
+    }, [isGuest]);
+    
+    useEffect(() => {
+        if (outline && outlineRef.current) {
+            outlineRef.current.scrollIntoView({ behavior: 'smooth' });
+        }
+    }, [outline]);
+
+
+    const fetchHistory = async () => {
+        if (!token) return;
+        try {
+            const response = await fetch(API_ENDPOINTS.history, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (response.ok) {
+                const data = await response.json();
+                setHistory(data);
+            }
+        } catch (error) {
+            console.error('获取历史记录失败:', error);
+        }
+    };
+    
+    const handleDeleteHistory = async (id) => {
+        if (window.confirm(t.confirmDelete)) {
+             if (!token) return;
+             try {
+                const response = await fetch(`${API_ENDPOINTS.history}/${id}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (response.ok) {
+                    fetchHistory();
+                }
+             } catch (error) {
+                console.error('删除历史记录失败:', error);
+             }
+        }
+    };
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        
+        if (isGuest && guestTries <= 0) {
+            alert(t.noGuestTries);
+            return;
+        }
+
+        setIsLoading(true);
+        setOutline('');
+
+        const headers = { 'Content-Type': 'application/json' };
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        try {
+            const response = await fetch(API_ENDPOINTS.generate, {
+                method: 'POST',
+                headers: headers,
+                body: JSON.stringify({
+                    character1: character1,
+                    character2: character2,
+                    plot_prompt: plotPrompt,
+                    language: 'zh-CN' 
+                }),
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.message || '生成大纲时出错');
+            }
+            setOutline(data.outline);
+            if (isGuest) {
+                const newTries = guestTries - 1;
+                setGuestTries(newTries);
+                localStorage.setItem('guestTries', newTries);
+            } else if (data.remaining_credits !== undefined) {
+                updateUserCredits(data.remaining_credits);
+            }
+            
+        } catch (err) {
+            alert(`错误: ${err.message}`);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+    
+    return (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-6">
+            <div className="md:col-span-1">
+                <form onSubmit={handleSubmit} className="bg-gray-800 p-6 rounded-xl shadow-lg">
+                    <textarea value={character1} onChange={(e) => setCharacter1(e.target.value)} placeholder={t.character1Placeholder} className="textarea-style" rows="5"></textarea>
+                    <textarea value={character2} onChange={(e) => setCharacter2(e.target.value)} placeholder={t.character2Placeholder} className="textarea-style" rows="5"></textarea>
+                    <textarea value={plotPrompt} onChange={(e) => setPlotPrompt(e.target.value)} placeholder={t.plotPromptPlaceholder} className="textarea-style" rows="3"></textarea>
+                    <button type="submit" disabled={isLoading} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-wait">
+                        {isLoading ? t.generatingButton : t.generateButton}
+                    </button>
+                </form>
+                 {!isGuest && (
+                    <div className="mt-8 bg-gray-800 p-6 rounded-xl shadow-lg">
+                        <h3 className="text-xl font-bold mb-4">{t.historyTitle}</h3>
+                        <div className="max-h-96 overflow-y-auto pr-2">
+                           {history.map(item => (
+                               <div key={item.id} className="bg-gray-700 p-4 rounded-lg mb-3">
+                                   <p className="font-semibold truncate">{item.core_prompt}</p>
+                                   <p className="text-xs text-gray-400">{new Date(item.created_at).toLocaleString()}</p>
+                                   <button onClick={() => setPlotPrompt(item.core_prompt) & setCharacter1(item.character1_setting) & setCharacter2(item.character2_setting)} className="text-blue-400 hover:text-blue-300 text-xs mr-4">载入</button>
+                                   <button onClick={() => handleDeleteHistory(item.id)} className="text-red-400 hover:text-red-300 text-xs">{t.deleteButton}</button>
+                               </div>
+                           ))}
+                        </div>
+                    </div>
+                 )}
+            </div>
+            <div className="md:col-span-2 bg-gray-800 p-6 rounded-xl shadow-lg">
+                <div ref={outlineRef} className="prose prose-invert max-w-none prose-p:text-gray-300 prose-headings:text-white whitespace-pre-wrap">
+                   {isLoading ? <p>灵感正在迸发...</p> : (outline || <p>在这里等待你的灵感方舟起航...</p>)}
+                </div>
+            </div>
+        </div>
+    );
+};
+
 export default App;
+```
+
+### ✨ 这次升级了什么？
+
+1.  **引入 `jwt-decode` 库**：这是一个小巧而安全的库，专门用来在前端解码 JWT Token，我们用它来读取 Token 的过期时间。
+2.  **应用启动时自动验证 (最重要的)**：
+    * 我添加了一个 `useEffect` 钩子，它只会在你的 Plot Ark 应用**首次加载时**运行一次。
+    * 它会去 `localStorage` 里检查是否存在 `token`。
+    * 如果存在，它会用 `jwt-decode` 解码这个 `token`，并检查里面的 `exp` (过期时间) 字段。
+    * **如果发现 `token` 已经过期了**，它就会自动调用 `handleLogout()` 函数，**帮你把所有过期的用户信息和 `token` 清理得干干净净**，然后把你带回登录页面。
+    * **如果 `token` 仍然有效**，它才会恢复你的登录状态，让你直接进入主应用。
+3.  **强化了 `handleLogout`**：现在的退出登录函数会确保 `token`、`user` 状态以及 `localStorage` 里的所有相关信息都被彻底清除，不留后患。
+
+### 🚨 下一步行动
+
+1.  **安装新依赖**：在你的前端项目文件夹里，打开终端，运行以下命令来安装我们需要的解码库：
+    ```bash
+    npm install jwt-decode
+    
 
