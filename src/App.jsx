@@ -1,18 +1,24 @@
 import React, { useState, useEffect, createContext, useContext, useRef } from 'react';
 
 // --- 自定义样式 (Custom Styles) ---
-// 这段样式专门用来修复<select>下拉选项的字体颜色问题
 const customSelectStyles = `
+  /* 强制下拉菜单里的选项文字为黑色 */
   .custom-select-force-black-options option {
-    color: black;
+    color: black !important;
+  }
+  /* 强制暗色模式下，所有输入框和文本域的文字为黑色 */
+  .dark .force-black-text::placeholder {
+    color: #4b5563; /* 暗模式下稍浅的灰色placeholder */
+  }
+  .dark .force-black-text {
+    color: black !important;
   }
 `;
 
 // --- JWT解码辅助函数 (JWT Decode Helper) ---
 const decodeJwt = (token) => {
-  // 游客token不包含JWT结构，直接返回一个模拟的payload
   if (token && token.startsWith('guest-')) {
-    return { is_guest: true, exp: Date.now() / 1000 + 3600 }; // 假设游客token有效期为1小时
+    return { is_guest: true, exp: Date.now() / 1000 + 3600 };
   }
   try {
     const base64Url = token.split('.')[1];
@@ -29,7 +35,9 @@ const decodeJwt = (token) => {
 };
 
 // --- 配置 (Configuration) ---
-const API_BASE_URL = 'https://plot-ark-backend-vpy736x7ja-uc.a.run.app';
+// 直接使用你提供的最新后端地址
+const API_BASE_URL = 'https://plot-ark-backend-885033581194.us-central1.run.app';
+
 
 const API_ENDPOINTS = {
   register: `${API_BASE_URL}/api/register`,
@@ -67,6 +75,7 @@ const translations = {
     historyTitle: 'Creation History',
     loadButton: 'Load',
     deleteButton: 'Delete',
+    closeButton: 'Close',
     confirmDelete: 'Are you sure you want to delete this entry?',
     userCredits: 'Credits: {credits}',
     freeCredits: 'Free Credits: {credits}',
@@ -110,6 +119,7 @@ const translations = {
     historyTitle: '创作历史',
     loadButton: '载入',
     deleteButton: '删除',
+    closeButton: '关闭',
     confirmDelete: '确定要删除这条历史记录吗？',
     userCredits: '创作点数: {credits}',
     freeCredits: '免费额度: {credits}',
@@ -153,6 +163,7 @@ const translations = {
     historyTitle: '創作歷史',
     loadButton: '載入',
     deleteButton: '刪除',
+    closeButton: '關閉',
     confirmDelete: '確定要刪除這條歷史記錄嗎？',
     userCredits: '創作點數: {credits}',
     freeCredits: '免費額度: {credits}',
@@ -173,6 +184,7 @@ const AppContext = createContext();
 // --- 图标组件 (Icon Components) ---
 const SunIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>;
 const MoonIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>;
+const HistoryIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>;
 
 // --- 主应用组件 (Main App Component) ---
 function App() {
@@ -261,6 +273,7 @@ function App() {
 // --- 头部组件 (Header Component) ---
 const Header = ({ user, onLogout }) => {
   const { theme, setTheme, lang, setLang, t } = useContext(AppContext);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   
   const toggleTheme = () => setTheme(theme === 'dark' ? 'light' : 'dark');
 
@@ -271,41 +284,50 @@ const Header = ({ user, onLogout }) => {
   };
   
   return (
-    <header className="bg-light-card dark:bg-dark-card shadow-sm sticky top-0 z-10 transition-colors duration-300">
-      <div className="container mx-auto p-4 flex justify-between items-center">
-        <div className="flex items-center space-x-3">
-            <span className="text-2xl" role="img" aria-label="rocket">🚀</span>
-            <h1 className="text-xl sm:text-2xl font-bold tracking-wider">{t('title')}</h1>
-        </div>
-        <div className="flex items-center space-x-2 sm:space-x-4">
-          {user && (
-            <span className="hidden sm:inline text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary">
-                {user.is_guest ? t('freeCredits').replace('{credits}', user.credits) : `${user.email} (${t('userCredits').replace('{credits}', user.credits)})`}
-            </span>
-          )}
-          
-          <div className="flex items-center bg-black/5 dark:bg-white/10 p-1 rounded-lg">
-            {Object.keys(langOptions).map(key => (
-              <button 
-                key={key} 
-                onClick={() => setLang(key)}
-                className={`px-3 py-1 text-sm font-bold rounded-md transition-colors duration-200 ${lang === key ? 'bg-light-card dark:bg-dark-card shadow-sm text-light-primary dark:text-dark-primary' : 'text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-primary dark:hover:text-dark-text-primary'}`}
-              >
-                {langOptions[key]}
-              </button>
-            ))}
+    <>
+      <header className="bg-light-card dark:bg-dark-card shadow-sm sticky top-0 z-10 transition-colors duration-300">
+        <div className="container mx-auto p-4 flex justify-between items-center">
+          <div className="flex items-center space-x-3">
+              <span className="text-2xl" role="img" aria-label="rocket">🚀</span>
+              <h1 className="text-xl sm:text-2xl font-bold tracking-wider">{t('title')}</h1>
           </div>
+          <div className="flex items-center space-x-2 sm:space-x-4">
+            {user && (
+              <span className="hidden sm:inline text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary">
+                  {user.is_guest ? t('freeCredits').replace('{credits}', user.credits) : `${user.email} (${t('userCredits').replace('{credits}', user.credits)})`}
+              </span>
+            )}
+            
+            {user && !user.is_guest && (
+               <button onClick={() => setIsHistoryOpen(true)} className="p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition-colors duration-200" aria-label="Open History">
+                  <HistoryIcon className="w-5 h-5"/>
+              </button>
+            )}
 
-          <button onClick={toggleTheme} className="p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition-colors duration-200" aria-label="Toggle Theme">
-            {theme === 'dark' ? <SunIcon className="w-5 h-5"/> : <MoonIcon className="w-5 h-5"/>}
-          </button>
-          
-          {user && (
-            <button onClick={onLogout} className="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg text-sm transition-colors duration-200">{t('logoutButton')}</button>
-          )}
+            <div className="flex items-center bg-black/5 dark:bg-white/10 p-1 rounded-lg">
+              {Object.keys(langOptions).map(key => (
+                <button 
+                  key={key} 
+                  onClick={() => setLang(key)}
+                  className={`px-3 py-1 text-sm font-bold rounded-md transition-colors duration-200 ${lang === key ? 'bg-light-card dark:bg-dark-card shadow-sm text-light-primary dark:text-dark-primary' : 'text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-primary dark:hover:text-dark-text-primary'}`}
+                >
+                  {langOptions[key]}
+                </button>
+              ))}
+            </div>
+
+            <button onClick={toggleTheme} className="p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition-colors duration-200" aria-label="Toggle Theme">
+              {theme === 'dark' ? <SunIcon className="w-5 h-5"/> : <MoonIcon className="w-5 h-5"/>}
+            </button>
+            
+            {user && (
+              <button onClick={onLogout} className="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg text-sm transition-colors duration-200">{t('logoutButton')}</button>
+            )}
+          </div>
         </div>
-      </div>
-    </header>
+      </header>
+      {isHistoryOpen && <HistoryModal onClose={() => setIsHistoryOpen(false)} />}
+    </>
   );
 };
 
@@ -409,6 +431,56 @@ const AuthPage = ({ onLoginSuccess }) => {
   );
 };
 
+// --- 历史记录弹窗 (History Modal) ---
+const HistoryModal = ({ onClose }) => {
+    const { t } = useContext(AppContext);
+    const [history, setHistory] = useState([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const token = localStorage.getItem('token');
+
+    useEffect(() => {
+        const fetchHistory = async () => {
+            if (!token) { setIsLoading(false); return; }
+            try {
+                const response = await fetch(API_ENDPOINTS.history, { headers: { 'Authorization': `Bearer ${token}` } });
+                if (response.ok) {
+                    setHistory(await response.json());
+                }
+            } catch (error) {
+                console.error('Failed to fetch history:', error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        fetchHistory();
+    }, [token]);
+    
+    // ... (delete logic can be added here if needed)
+
+    return (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
+            <div className="bg-light-card dark:bg-dark-card rounded-2xl shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+                <div className="p-6 border-b border-light-border dark:border-dark-border flex justify-between items-center">
+                    <h2 className="text-xl font-bold">{t('historyTitle')}</h2>
+                    <button onClick={onClose} className="text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-primary dark:hover:text-dark-text-primary">&times;</button>
+                </div>
+                <div className="p-6 overflow-y-auto space-y-4">
+                    {isLoading ? <p>Loading...</p> : history.length > 0 ? history.map(item => (
+                         <div key={item.id} className="bg-light-background dark:bg-dark-background/50 p-4 rounded-lg">
+                            <p className="font-semibold truncate text-sm mb-1">{item.core_prompt}</p>
+                            <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{new Date(item.created_at).toLocaleString()}</p>
+                        </div>
+                    )) : <p className="text-center text-light-text-secondary dark:text-dark-text-secondary">No history found.</p>}
+                </div>
+                 <div className="p-4 border-t border-light-border dark:border-dark-border text-right">
+                    <button onClick={onClose} className="bg-light-primary dark:bg-dark-primary text-white font-bold py-2 px-4 rounded-lg text-sm">{t('closeButton')}</button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+
 // --- 主应用页面组件 (Main App Page Component) ---
 const MainAppPage = ({ token, user, updateUserCredits }) => {
     const { t, lang } = useContext(AppContext);
@@ -420,22 +492,12 @@ const MainAppPage = ({ token, user, updateUserCredits }) => {
     const [outline, setOutline] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
-    const [history, setHistory] = useState([]);
     
     const isGuest = user?.is_guest;
     const outlineRef = useRef(null);
 
     const langCodeMapping = { 'en': 'en', 'zh_CN': 'zh-CN', 'zh_TW': 'zh-TW' };
-
-    const fetchHistory = async () => {
-        if (!token || isGuest) return;
-        try {
-            const response = await fetch(API_ENDPOINTS.history, { headers: { 'Authorization': `Bearer ${token}` } });
-            if (response.ok) setHistory(await response.json());
-        } catch (error) { console.error('Failed to fetch history:', error); }
-    };
-
-    useEffect(() => { fetchHistory(); }, [token, isGuest]);
+    
     useEffect(() => { if (outline) outlineRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, [outline]);
 
     const handleSubmit = async (e) => {
@@ -463,7 +525,6 @@ const MainAppPage = ({ token, user, updateUserCredits }) => {
             setOutline(data.outline);
             const newCredits = data.remaining_credits !== undefined ? data.remaining_credits : user.credits - 1;
             updateUserCredits(newCredits);
-            if (!isGuest) fetchHistory();
         } catch (err) {
             setError(err.message);
         } finally {
@@ -471,27 +532,9 @@ const MainAppPage = ({ token, user, updateUserCredits }) => {
         }
     };
     
-    const handleDeleteHistory = async (id) => {
-        if (window.confirm(t('confirmDelete'))) {
-             if (!token || isGuest) return;
-             try {
-                const response = await fetch(`${API_ENDPOINTS.history}/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
-                if (response.ok) fetchHistory();
-             } catch (error) { console.error('Failed to delete history:', error); }
-        }
-    };
+    const sharedTextareaClass = "w-full rounded-lg p-3 bg-light-background dark:bg-dark-input border border-light-border dark:border-dark-border focus:outline-none focus:ring-2 focus:ring-light-primary dark:focus:ring-dark-primary dark:focus:ring-offset-dark-card transition-all duration-200 shadow-sm text-sm force-black-text";
+    const sharedSelectClass = "w-full rounded-lg p-3 bg-light-background dark:bg-dark-input border border-light-border dark:border-dark-border focus:outline-none focus:ring-2 focus:ring-light-primary dark:focus:ring-dark-primary dark:focus:ring-offset-dark-card transition-all duration-200 shadow-sm text-sm custom-select-force-black-options force-black-text";
 
-    const loadFromHistory = (item) => {
-        setCharacter1(item.character1_setting.replace(/^\(.*\)\s*/, ''));
-        setCharacter2(item.character2_setting.replace(/^\(.*\)\s*/, ''));
-        // logic to extract gender can be added here if needed
-        setPlotPrompt(item.core_prompt);
-        setOutline(item.generated_outline);
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-    };
-
-    const sharedTextareaClass = "w-full rounded-lg p-3 bg-light-background dark:bg-dark-input border border-light-border dark:border-dark-border focus:outline-none focus:ring-2 focus:ring-light-primary dark:focus:ring-dark-primary dark:focus:ring-offset-dark-card transition-all duration-200 shadow-sm text-sm";
-    const sharedSelectClass = "w-full rounded-lg p-3 bg-light-background dark:bg-dark-input border border-light-border dark:border-dark-border focus:outline-none focus:ring-2 focus:ring-light-primary dark:focus:ring-dark-primary dark:focus:ring-offset-dark-card transition-all duration-200 shadow-sm text-sm custom-select-force-black-options text-gray-900";
 
     return (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-6">
@@ -538,7 +581,7 @@ const MainAppPage = ({ token, user, updateUserCredits }) => {
                 </form>
             </div>
 
-            {/* Right Column: Output & History */}
+            {/* Right Column: Output */}
             <div className="lg:col-span-1 flex flex-col space-y-8">
                  <div className="bg-light-card dark:bg-dark-card p-6 sm:p-8 rounded-xl shadow-lg flex-grow min-h-[40vh]">
                     <div ref={outlineRef} className="prose dark:prose-invert max-w-none prose-p:text-light-text-primary dark:prose-p:text-dark-text-primary prose-headings:text-light-text-primary dark:prose-headings:text-dark-text-primary whitespace-pre-wrap leading-relaxed">
@@ -551,24 +594,6 @@ const MainAppPage = ({ token, user, updateUserCredits }) => {
                     ))}
                     </div>
                 </div>
-
-                {!isGuest && (
-                    <div className="bg-light-card dark:bg-dark-card p-6 rounded-xl shadow-lg">
-                        <h3 className="text-xl font-bold mb-4">{t('historyTitle')}</h3>
-                        <div className="max-h-64 overflow-y-auto pr-2 space-y-3 -mr-2">
-                        {history.length > 0 ? history.map(item => (
-                            <div key={item.id} className="bg-light-background dark:bg-dark-card/50 p-4 rounded-lg">
-                                <p className="font-semibold truncate text-sm mb-1">{item.core_prompt}</p>
-                                <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mb-2">{new Date(item.created_at).toLocaleString()}</p>
-                                <div>
-                                    <button onClick={() => loadFromHistory(item)} className="text-light-primary dark:text-dark-primary hover:underline text-xs mr-4 font-medium">{t('loadButton')}</button>
-                                    <button onClick={() => handleDeleteHistory(item.id)} className="text-red-500 hover:underline text-xs font-medium">{t('deleteButton')}</button>
-                                </div>
-                            </div>
-                        )) : <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">{t('waitingForInspiration')}</p>}
-                        </div>
-                    </div>
-                )}
             </div>
         </div>
     );
