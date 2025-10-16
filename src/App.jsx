@@ -62,14 +62,14 @@ const translations = {
     clickToRegister: 'Click here to register',
     logoutButton: 'Logout',
     generateButton: 'Launch Ark',
-    generatingButton: 'Generating...',
+    generatingButton: 'Generating...', 
     character1: 'Character 1',
     character2: 'Character 2',
     gender: 'Gender',
     male: 'Male',
     female: 'Female',
     none: 'N/A',
-    character1Placeholder: 'Example: Ash Lynx, a charismatic gang leader in New York with a traumatic past, extraordinary intelligence, and blonde hair...',
+    character1Placeholder: 'Example: Ash Lynx, a charismatic gang leader in New York with a traumatic past, extraordinary intelligence, and blonde hair...', 
     character2Placeholder: 'Example: Eiji Okumura, a kind-hearted Japanese photographer who becomes an unwavering light in Ash\'s life...',
     plotPromptPlaceholder: 'Example: What if, years later, they reunite in modern Japan, but Ash has lost his memories?',
     historyTitle: 'Creation History',
@@ -86,11 +86,19 @@ const translations = {
     insufficientCredits: 'Insufficient credits. Please top up.',
     notVerified: 'Your account is not verified. Please check your email.',
     waitingForInspiration: 'Waiting for your inspiration to set sail...',
-    inspirationFlowing: 'Inspiration is flowing...',
+    inspirationFlowing: 'Inspiration is flowing...', 
     emailExists: 'This email is already registered.',
     invalidCredentials: 'Invalid email or password.',
     genericError: 'An unexpected error occurred.',
     failedToFetch: 'Failed to fetch',
+    plotPromptLabel: 'Core Trope / Scene',
+    backToLogin: 'Already have an account? Go back to login',
+    orSeparator: 'OR',
+    loading: 'Loading...', 
+    noHistoryFound: 'No history found.',
+    failedToDeleteHistory: 'Failed to delete history item.',
+    errorDeletingHistory: 'An error occurred while deleting the history item.',
+    loadingButton: '...', 
   },
   zh_CN: {
     title: '灵感方舟',
@@ -135,6 +143,14 @@ const translations = {
     invalidCredentials: '邮箱或密码错误。',
     genericError: '发生未知错误。',
     failedToFetch: '请求失败',
+    plotPromptLabel: '核心梗 / 场景',
+    backToLogin: '已有账号？返回登录',
+    orSeparator: '或',
+    loading: '加载中...', 
+    noHistoryFound: '暂无历史记录。',
+    failedToDeleteHistory: '删除历史记录失败。',
+    errorDeletingHistory: '删除历史记录时发生错误。',
+    loadingButton: '...', 
   },
   zh_TW: {
     title: '靈感方舟',
@@ -157,8 +173,8 @@ const translations = {
     male: '男',
     female: '女',
     none: '無性別',
-    character1Placeholder: '例如：亞修·林克斯，一個在紐約街頭長大、背景複雜、魅力超凡的金髮少年...',
-    character2Placeholder: '例如：奧村英二，一位善良的日本攝影師，他成為了亞修生命中堅定不移的光...',
+    character1Placeholder: '例如：亞修·林克斯，一個在紐約街頭長大、背景複雜、魅力超凡的金髮少年...', 
+    character2Placeholder: '例如：奧村英二，一位善良的日本攝影師，他成為了亞修生命中堅定不移的光...', 
     plotPromptPlaceholder: '例如：如果多年以後，他們在現代日本重逢，而亞修失去了記憶，會發生什麼？',
     historyTitle: '創作歷史',
     loadButton: '載入',
@@ -175,11 +191,39 @@ const translations = {
     notVerified: '您的帳戶尚未啟用，請檢查郵箱。',
     genericError: '發生未知錯誤。',
     failedToFetch: '請求失敗',
+    waitingForInspiration: '在這裡等待你的靈感方舟啟航…',
+    inspirationFlowing: '靈感正在迸發…',
+    emailExists: '該郵箱已被註冊。',
+    invalidCredentials: '郵箱或密碼錯誤。',
+    plotPromptLabel: '核心梗 / 場景',
+    backToLogin: '已有帳號？返回登入',
+    orSeparator: '或',
+    loading: '載入中...', 
+    noHistoryFound: '暫無歷史記錄。',
+    failedToDeleteHistory: '刪除歷史記錄失敗。',
+    errorDeletingHistory: '刪除歷史記錄時發生錯誤。',
+    loadingButton: '...', 
   },
 };
 
 // --- 上下文 (Context for Theme & Language) ---
 const AppContext = createContext();
+
+// --- Markdown -> HTML 辅助函数 ---
+const markdownToHtml = (text) => {
+    if (!text) return '';
+    let html = text;
+    // 首先处理标题，从最具体的开始
+    html = html.replace(/^### (.*$)/gim, '<h3>$1</h3>');
+    html = html.replace(/^## (.*$)/gim, '<h2>$1</h2>');
+    html = html.replace(/^# (.*$)/gim, '<h1>$1</h1>');
+    // 处理加粗和斜体
+    html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
+    // 处理换行
+    html = html.replace(/\n/g, '<br />');
+    return html;
+};
 
 // --- 图标组件 (Icon Components) ---
 const SunIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>;
@@ -293,15 +337,15 @@ const Header = ({ user, onLogout }) => {
           </div>
           <div className="flex items-center space-x-2 sm:space-x-4">
             {user && (
-              <span className="hidden sm:inline text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary">
-                  {user.is_guest ? t('freeCredits').replace('{credits}', user.credits) : `${user.email} (${t('userCredits').replace('{credits}', user.credits)})`}
-              </span>
-            )}
-            
-            {user && !user.is_guest && (
-               <button onClick={() => setIsHistoryOpen(true)} className="p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition-colors duration-200" aria-label="Open History">
-                  <HistoryIcon className="w-5 h-5"/>
-              </button>
+              <>
+                <span className="hidden sm:inline text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary">
+                    {user.is_guest ? t('freeCredits').replace('{credits}', user.credits) : `${user.email} (${t('userCredits').replace('{credits}', user.credits)})`}
+                </span>
+                <button onClick={() => setIsHistoryOpen(true)} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-black/5 dark:bg-white/10 text-light-text-secondary dark:text-dark-text-secondary hover:bg-black/10 dark:hover:bg-white/20 transition-colors duration-200" aria-label={t('historyTitle')}> 
+                    <HistoryIcon className="w-5 h-5"/>
+                    <span className="hidden sm:inline">{t('historyTitle')}</span>
+                </button>
+              </>
             )}
 
             <div className="flex items-center bg-black/5 dark:bg-white/10 p-1 rounded-lg">
@@ -408,18 +452,18 @@ const AuthPage = ({ onLoginSuccess }) => {
                 </div>
                 <div>
                     <button type="submit" disabled={isLoading} className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-light-primary hover:bg-light-primary-hover dark:bg-dark-primary dark:hover:bg-dark-primary-hover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-light-primary dark:focus:ring-dark-primary dark:focus:ring-offset-dark-card disabled:opacity-50 transition-colors">
-                        {isLoading ? '...' : (isRegisterMode ? t('registerButton') : t('loginButton'))}
+                        {isLoading ? t('loadingButton') : (isRegisterMode ? t('registerButton') : t('loginButton'))}
                     </button>
                 </div>
             </form>
              <div className="text-center text-sm">
                 <a href="#" onClick={(e) => { e.preventDefault(); setIsRegisterMode(!isRegisterMode); setError(''); setMessage(''); }} className="font-medium text-light-primary hover:text-light-primary-hover dark:text-dark-primary dark:hover:text-dark-primary-hover transition-colors">
-                    {isRegisterMode ? '已有账号？返回登录' : t('noAccount') + ' ' + t('clickToRegister')}
+                    {isRegisterMode ? t('backToLogin') : t('noAccount') + ' ' + t('clickToRegister')}
                 </a>
              </div>
             <div className="relative">
                 <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-light-border dark:border-dark-border" /></div>
-                <div className="relative flex justify-center text-sm"><span className="px-2 bg-light-card dark:bg-dark-card text-light-text-secondary dark:text-dark-text-secondary">OR</span></div>
+                <div className="relative flex justify-center text-sm"><span className="px-2 bg-light-card dark:bg-dark-card text-light-text-secondary dark:text-dark-text-secondary">{t('orSeparator')}</span></div>
             </div>
              <div>
                 <button type="button" onClick={handleGuestMode} className="group relative w-full flex justify-center py-3 px-4 border border-light-border dark:border-dark-border text-sm font-medium rounded-md hover:bg-black/5 dark:hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 dark:focus:ring-offset-dark-card transition-colors">
@@ -436,6 +480,7 @@ const HistoryModal = ({ onClose }) => {
     const { t } = useContext(AppContext);
     const [history, setHistory] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [expandedId, setExpandedId] = useState(null);
     const token = localStorage.getItem('token');
 
     useEffect(() => {
@@ -444,7 +489,9 @@ const HistoryModal = ({ onClose }) => {
             try {
                 const response = await fetch(API_ENDPOINTS.history, { headers: { 'Authorization': `Bearer ${token}` } });
                 if (response.ok) {
-                    setHistory(await response.json());
+                    const data = await response.json();
+                    // 按日期排序，最新的在前
+                    setHistory(data.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)));
                 }
             } catch (error) {
                 console.error('Failed to fetch history:', error);
@@ -455,22 +502,56 @@ const HistoryModal = ({ onClose }) => {
         fetchHistory();
     }, [token]);
     
-    // ... (delete logic can be added here if needed)
+    const handleDelete = async (idToDelete) => {
+        if (!window.confirm(t('confirmDelete'))) return; 
+        
+        try {
+            // 假设删除的 API 端点是 DELETE /api/history/:id
+            const response = await fetch(`${API_ENDPOINTS.history}/${idToDelete}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (response.ok) {
+                setHistory(prevHistory => prevHistory.filter(item => item.id !== idToDelete));
+            } else {
+                console.error('Failed to delete history item.');
+                alert(t('failedToDeleteHistory'));
+            }
+        } catch (error) {
+            console.error('Failed to delete history item:', error);
+            alert(t('errorDeletingHistory'));
+        }
+    };
 
     return (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
-            <div className="bg-light-card dark:bg-dark-card rounded-2xl shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="bg-light-card dark:bg-dark-card rounded-2xl shadow-xl w-full max-w-3xl max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
                 <div className="p-6 border-b border-light-border dark:border-dark-border flex justify-between items-center">
                     <h2 className="text-xl font-bold">{t('historyTitle')}</h2>
-                    <button onClick={onClose} className="text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-primary dark:hover:text-dark-text-primary">&times;</button>
+                    <button onClick={onClose} className="text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-primary dark:hover:text-dark-text-primary text-2xl leading-none">&times;</button>
                 </div>
                 <div className="p-6 overflow-y-auto space-y-4">
-                    {isLoading ? <p>Loading...</p> : history.length > 0 ? history.map(item => (
-                         <div key={item.id} className="bg-light-background dark:bg-dark-background/50 p-4 rounded-lg">
-                            <p className="font-semibold truncate text-sm mb-1">{item.core_prompt}</p>
-                            <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{new Date(item.created_at).toLocaleString()}</p>
+                    {isLoading ? <p>{t('loading')}</p> : history.length > 0 ? history.map(item => (
+                         <div key={item.id} className="bg-light-background dark:bg-dark-background/50 rounded-lg transition-shadow hover:shadow-md">
+                            <div className="p-4">
+                                <div className="flex justify-between items-start mb-2">
+                                    <p className="font-semibold text-sm pr-4 flex-grow cursor-pointer" onClick={() => setExpandedId(expandedId === item.id ? null : item.id)}>{item.core_prompt}</p>
+                                    <div className="flex items-center space-x-3 flex-shrink-0">
+                                        <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{new Date(item.created_at).toLocaleString()}</p>
+                                        <button onClick={(e) => { e.stopPropagation(); handleDelete(item.id); }} className="text-red-500 hover:text-red-700 text-xs font-semibold">{t('deleteButton')}</button>
+                                    </div>
+                                </div>
+                                {expandedId === item.id && (
+                                    <div className="border-t border-light-border dark:border-dark-border mt-2 pt-3">
+                                        <div 
+                                            className="prose prose-sm dark:prose-invert max-w-none prose-p:text-light-text-primary dark:prose-p:text-dark-text-primary prose-headings:text-light-text-primary dark:prose-headings:text-dark-text-primary whitespace-pre-wrap leading-relaxed"
+                                            dangerouslySetInnerHTML={{ __html: markdownToHtml(item.outline || t('waitingForInspiration')) }} 
+                                        />
+                                    </div>
+                                )}
+                            </div>
                         </div>
-                    )) : <p className="text-center text-light-text-secondary dark:text-dark-text-secondary">No history found.</p>}
+                    )) : <p className="text-center text-light-text-secondary dark:text-dark-text-secondary">{t('noHistoryFound')}</p>}
                 </div>
                  <div className="p-4 border-t border-light-border dark:border-dark-border text-right">
                     <button onClick={onClose} className="bg-light-primary dark:bg-dark-primary text-white font-bold py-2 px-4 rounded-lg text-sm">{t('closeButton')}</button>
@@ -493,7 +574,6 @@ const MainAppPage = ({ token, user, updateUserCredits }) => {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
     
-    const isGuest = user?.is_guest;
     const outlineRef = useRef(null);
 
     const langCodeMapping = { 'en': 'en', 'zh_CN': 'zh-CN', 'zh_TW': 'zh-TW' };
@@ -509,7 +589,7 @@ const MainAppPage = ({ token, user, updateUserCredits }) => {
         const fullCharacter2 = `(${t(gender2)}) ${character2}`;
 
         const headers = { 'Content-Type': 'application/json' };
-        if (token && !isGuest) headers['Authorization'] = `Bearer ${token}`;
+        if (token) headers['Authorization'] = `Bearer ${token}`;
 
         try {
             const response = await fetch(API_ENDPOINTS.generate, {
@@ -522,7 +602,8 @@ const MainAppPage = ({ token, user, updateUserCredits }) => {
                 const errorKey = data.error === 'insufficient_credits' ? 'insufficientCredits' : data.error === 'not_verified' ? 'notVerified' : data.error === '内容被安全系统拦截' ? 'failedToFetch' : 'genericError';
                 throw new Error(t(errorKey) + (data.reason ? ` (${data.reason})` : ''));
             }
-            setOutline(data.outline);
+            const processedOutline = (data.outline || '').replace('好的，我将以对这些角色深刻理解和尊重的态度，来构建这个故事。', '').trim();
+            setOutline(processedOutline);
             const newCredits = data.remaining_credits !== undefined ? data.remaining_credits : user.credits - 1;
             updateUserCredits(newCredits);
         } catch (err) {
@@ -567,7 +648,7 @@ const MainAppPage = ({ token, user, updateUserCredits }) => {
                     </div>
 
                     <div>
-                        <label className="block text-sm font-bold mb-2">核心梗 / 场景</label>
+                        <label className="block text-sm font-bold mb-2">{t('plotPromptLabel')}</label>
                         <textarea value={plotPrompt} onChange={(e) => setPlotPrompt(e.target.value)} placeholder={t('plotPromptPlaceholder')} className={`${sharedTextareaClass} min-h-[100px]`} required></textarea>
                     </div>
 
@@ -588,7 +669,7 @@ const MainAppPage = ({ token, user, updateUserCredits }) => {
                     {isLoading ? (
                             <div className="flex justify-center items-center h-full"><p>{t('inspirationFlowing')}</p></div>
                     ) : (outline ? (
-                            <div dangerouslySetInnerHTML={{ __html: outline.replace(/\n/g, '<br />') }} />
+                            <div dangerouslySetInnerHTML={{ __html: markdownToHtml(outline) }} />
                     ) : (
                             <p className="text-light-text-secondary dark:text-dark-text-secondary">{t('waitingForInspiration')}</p>
                     ))}
@@ -600,4 +681,3 @@ const MainAppPage = ({ token, user, updateUserCredits }) => {
 };
 
 export default App;
-
