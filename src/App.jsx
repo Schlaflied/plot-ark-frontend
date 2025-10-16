@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { jwtDecode } from 'jwt-decode';
 import './App.css';
+import './index.css'; // 确保引入样式
 
 // --- 配置: 后端 API 地址 ---
 const API_BASE_URL = 'https://plot-ark-backend-vpy736x7ja-uc.a.run.app';
@@ -198,8 +199,8 @@ const AuthPage = ({ t, onLogin, onRegister, onGuestMode, error }) => {
                     <input type="password" id="password" value={password} onChange={(e) => setPassword(e.target.value)} className="shadow-inner appearance-none border border-gray-600 rounded-lg w-full py-3 px-4 bg-gray-700 text-white mb-3 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
                 <div className="flex flex-col space-y-4">
-                    <button onClick={handleSubmitLogin} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg w-full transition-colors duration-200">{t.loginButton}</button>
-                    <button onClick={handleSubmitRegister} className="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg w-full transition-colors duration-200">{t.registerButton}</button>
+                    <button type="button" onClick={handleSubmitLogin} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg w-full transition-colors duration-200">{t.loginButton}</button>
+                    <button type="button" onClick={handleSubmitRegister} className="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg w-full transition-colors duration-200">{t.registerButton}</button>
                     <button type="button" onClick={handleGuestClick} disabled={guestTries <= 0} className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 px-4 rounded-lg w-full transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed">
                         {guestTries > 0 ? t.guestModeButton.replace('{tries}', guestTries) : t.noGuestTries}
                     </button>
@@ -226,7 +227,7 @@ const MainApp = ({ t, token, user, updateUserCredits }) => {
         if (!isGuest) {
             fetchHistory();
         }
-    }, [isGuest]);
+    }, [isGuest, token]);
     
     useEffect(() => {
         if (outline && outlineRef.current) {
@@ -305,6 +306,7 @@ const MainApp = ({ t, token, user, updateUserCredits }) => {
                 localStorage.setItem('guestTries', newTries);
             } else if (data.remaining_credits !== undefined) {
                 updateUserCredits(data.remaining_credits);
+                fetchHistory();
             }
             
         } catch (err) {
@@ -329,11 +331,11 @@ const MainApp = ({ t, token, user, updateUserCredits }) => {
                     <div className="mt-8 bg-gray-800 p-6 rounded-xl shadow-lg">
                         <h3 className="text-xl font-bold mb-4">{t.historyTitle}</h3>
                         <div className="max-h-96 overflow-y-auto pr-2">
-                           {history.map(item => (
+                           {history && history.map(item => (
                                <div key={item.id} className="bg-gray-700 p-4 rounded-lg mb-3">
                                    <p className="font-semibold truncate">{item.core_prompt}</p>
                                    <p className="text-xs text-gray-400">{new Date(item.created_at).toLocaleString()}</p>
-                                   <button onClick={() => setPlotPrompt(item.core_prompt) & setCharacter1(item.character1_setting) & setCharacter2(item.character2_setting)} className="text-blue-400 hover:text-blue-300 text-xs mr-4">载入</button>
+                                   <button onClick={() => {setPlotPrompt(item.core_prompt); setCharacter1(item.character1_setting); setCharacter2(item.character2_setting);}} className="text-blue-400 hover:text-blue-300 text-xs mr-4">载入</button>
                                    <button onClick={() => handleDeleteHistory(item.id)} className="text-red-400 hover:text-red-300 text-xs">{t.deleteButton}</button>
                                </div>
                            ))}
