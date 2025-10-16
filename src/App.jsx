@@ -1,4 +1,4 @@
-import React, { useState, useEffect, createContext, useContext, useRef } from 'react';
+import React, { useState, useEffect, createContext, useContext, useRef, useMemo } from 'react';
 
 // --- 自定义样式 (Custom Styles) ---
 const customSelectStyles = `
@@ -16,23 +16,23 @@ const customSelectStyles = `
 `;
 
 // --- JWT解码辅助函数 (JWT Decode Helper) ---
-const decodeJwt = (token) => {
-  if (token && token.startsWith('guest-')) {
-    return { is_guest: true, exp: Date.now() / 1000 + 3600 };
-  }
-  try {
-    const base64Url = token.split('.')[1];
-    if (!base64Url) return null;
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
-        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-    }).join(''));
-    return JSON.parse(jsonPayload);
-  } catch (e) {
-    console.error("Failed to decode JWT:", e);
-    return null;
-  }
-};
+// const decodeJwt = (token) => {
+//   if (token && token.startsWith('guest-')) {
+//     return { is_guest: true, exp: Date.now() / 1000 + 3600 };
+//   }
+//   try {
+//     const base64Url = token.split('.')[1];
+//     if (!base64Url) return null;
+//     const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+//     const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+//         return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+//     }).join(''));
+//     return JSON.parse(jsonPayload);
+//   } catch (e) {
+//     console.error("Failed to decode JWT:", e);
+//     return null;
+//   }
+// };
 
 // --- 配置 (Configuration) ---
 // 直接使用你提供的最新后端地址
@@ -68,7 +68,7 @@ const translations = {
     gender: 'Gender',
     male: 'Male',
     female: 'Female',
-    none: 'N/A',
+    none: 'nonbinary',
     character1Placeholder: 'Example: Ash Lynx, a charismatic gang leader in New York with a traumatic past, extraordinary intelligence, and blonde hair...', 
     character2Placeholder: 'Example: Eiji Okumura, a kind-hearted Japanese photographer who becomes an unwavering light in Ash\'s life...',
     plotPromptPlaceholder: 'Example: What if, years later, they reunite in modern Japan, but Ash has lost his memories?',
@@ -99,6 +99,8 @@ const translations = {
     failedToDeleteHistory: 'Failed to delete history item.',
     errorDeletingHistory: 'An error occurred while deleting the history item.',
     loadingButton: '...', 
+    copyOutline: 'Copy Full Outline',
+    copied: 'Copied!',
   },
   zh_CN: {
     title: '灵感方舟',
@@ -121,8 +123,8 @@ const translations = {
     male: '男',
     female: '女',
     none: '无性别',
-    character1Placeholder: '例如：亚修·林克斯，一个在纽约街头长大、背景复杂、魅力超凡的金发少年...',
-    character2Placeholder: '例如：奥村英二，一位善良的日本摄影师，他成为了亚修生命中坚定不移的光...',
+    character1Placeholder: '例如：亚修·林克斯，一个在纽约街头长大、背景复杂、魅力超凡的金发少年...', 
+    character2Placeholder: '例如：奥村英二，一位善良的日本摄影师，他成为了亚修生命中坚定不移的光...', 
     plotPromptPlaceholder: '例如：如果多年以后，他们在现代日本重逢，而亚修失去了记忆，会发生什么？',
     historyTitle: '创作历史',
     loadButton: '载入',
@@ -151,6 +153,8 @@ const translations = {
     failedToDeleteHistory: '删除历史记录失败。',
     errorDeletingHistory: '删除历史记录时发生错误。',
     loadingButton: '...', 
+    copyOutline: '复制完整大纲',
+    copied: '已复制!',
   },
   zh_TW: {
     title: '靈感方舟',
@@ -203,27 +207,167 @@ const translations = {
     failedToDeleteHistory: '刪除歷史記錄失敗。',
     errorDeletingHistory: '刪除歷史記錄時發生錯誤。',
     loadingButton: '...', 
+    copyOutline: '複製完整大綱',
+    copied: '已複製!',
   },
 };
 
 // --- 上下文 (Context for Theme & Language) ---
 const AppContext = createContext();
 
-// --- Markdown -> HTML 辅助函数 ---
-const markdownToHtml = (text) => {
+// --- AI输出处理与Markdown转换辅助函数 (for HistoryModal) ---
+const processAIOutput = (text) => {
     if (!text) return '';
-    let html = text;
-    // 首先处理标题，从最具体的开始
-    html = html.replace(/^### (.*$)/gim, '<h3>$1</h3>');
-    html = html.replace(/^## (.*$)/gim, '<h2>$1</h2>');
-    html = html.replace(/^# (.*$)/gim, '<h1>$1</h1>');
-    // 处理加粗和斜体
-    html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-    html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
-    // 处理换行
-    html = html.replace(/\n/g, '<br />');
-    return html;
+
+    let processedText = text;
+
+    // 1. 精确移除AI回复中多余的前导语句
+    const preambles = [
+        "好的，身为一位深爱这些角色的 storyteller，我将为你构建一个完全忠于他们性格和",
+        "好的，我将以对这些角色深刻理解和尊重的态度，为你构建一个符合他们性格逻辑和情感轨迹的情节大纲。",
+        "好的，我将以对这些角色深刻理解和尊重的态度，来构建这个故事。"
+    ];
+    preambles.forEach(p => {
+        processedText = processedText.replaceAll(p, '');
+    });
+    processedText = processedText.trim();
+
+    // 2. 转换Markdown为HTML，以实现加粗等格式
+    // 处理一级标题
+    processedText = processedText.replace(/^### (.*$)/gim, '<h3>$1</h3>');
+    // 处理二级标题
+    processedText = processedText.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    // 处理斜体 (以防万一)
+    processedText = processedText.replace(/\*(.*?)\*/g, '<em>$1</em>');
+
+    // 3. 处理换行
+    processedText = processedText.replace(/\n/g, '<br />');
+
+    return processedText;
 };
+
+
+// --- 大纲解析为卡片数据结构 ---
+const parseOutlineToCards = (text) => {
+    if (!text) return [];
+
+    let processedText = text;
+
+    // 1. 移除AI回复中多余的前导语句
+    const preambles = [
+        "好的，身为一位深爱这些角色的 storyteller，我将为你构建一个完全忠于他们性格和",
+        "好的，我将以对这些角色深刻理解和尊重的态度，为你构建一个符合他们性格逻辑和情感轨迹的情节大纲。",
+        "好的，我将以对这些角色深刻理解和尊重的态度，来构建这个故事。"
+    ];
+    preambles.forEach(p => {
+        processedText = processedText.replaceAll(p, '');
+    });
+    processedText = processedText.trim();
+
+    const sections = [];
+    const lines = processedText.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+
+    let currentMainSection = null;
+    let currentSubSection = null;
+
+    lines.forEach(line => {
+        if (line.startsWith('### ')) {
+            currentMainSection = { type: 'main_section', title: line.substring(4).trim(), content: [] };
+            sections.push(currentMainSection);
+            currentSubSection = null;
+        } else if (line.startsWith('**') && (line.includes(':**') || line.includes('：**'))) {
+            const parts = line.split(/:(?=\*\*)|：(?=\*\*)/);
+            const titleText = parts[0].replace(/\*\*/g, '').trim();
+            let initialContent = '';
+            if (parts.length > 1) {
+                initialContent = parts.slice(1).join(':').replace(/\*\*/g, '').trim();
+            }
+
+            if (currentMainSection) {
+                currentSubSection = { type: 'sub_section', title: titleText, text: initialContent };
+                currentMainSection.content.push(currentSubSection);
+            } else {
+                currentMainSection = { type: 'main_section', title: '大纲内容', content: [] };
+                sections.push(currentMainSection);
+                currentSubSection = { type: 'sub_section', title: titleText, text: initialContent };
+                currentMainSection.content.push(currentSubSection);
+            }
+        } else if (line.startsWith('* ')) {
+            const listItemText = '• ' + line.substring(2).trim();
+            if (currentSubSection) {
+                // Append list item to the current sub-section's text
+                currentSubSection.text += (currentSubSection.text ? '\n' : '') + listItemText;
+            } else if (currentMainSection) {
+                // Otherwise, add it as a content item to the main section (for Character Analysis)
+                currentMainSection.content.push({ type: 'list_item', text: line.substring(2).trim() });
+            }
+        } else {
+            if (currentSubSection) {
+                currentSubSection.text += (currentSubSection.text ? '\n' : '') + line;
+            } else if (currentMainSection) {
+                if (!currentMainSection.text) currentMainSection.text = '';
+                currentMainSection.text += (currentMainSection.text ? '\n' : '') + line;
+            }
+        }
+    });
+
+    return sections;
+};
+
+// --- OutlineCard Component ---
+const OutlineCard = ({ section }) => {
+    const { theme } = useContext(AppContext);
+
+    if (!section) {
+        return null; // Don't render if section is undefined
+    }
+
+    const cardClasses = `
+        bg-light-card dark:bg-dark-card p-4 rounded-lg shadow-md transition-colors duration-300
+        ${section.type === 'main_section' ? 'border-l-4 border-light-primary dark:border-dark-primary' : ''}
+    `;
+    const titleClasses = `
+        font-bold mb-2 text-lg text-light-primary dark:text-dark-primary
+    `;
+    const contentClasses = `
+        text-sm text-light-text-primary dark:text-dark-text-primary whitespace-pre-wrap
+    `;
+
+    return (
+        <div className={cardClasses}>
+            {section.title && <h3 className={titleClasses}>{section.title}</h3>}
+            
+            {/* Renders simple text content for sections like Rising Action */}
+            {section.text && <p className={contentClasses}>{section.text}</p>}
+            
+            {/* Renders structured content for sections like Character Analysis */}
+            {section.content && section.content.length > 0 && (
+                <div className="mt-2 space-y-4">
+                    {section.content.map((item, index) => {
+                        if (!item) return null;
+
+                        // Specifically for list_items from Character Analysis
+                        if (item.type === 'list_item') {
+                            return <p key={index} className={contentClasses}>{item.text}</p>;
+                        }
+
+                        // For potential future nested sub_sections
+                        if (item.type === 'sub_section') {
+                            return (
+                                <div key={index}>
+                                    {item.title && <p className="font-semibold text-md mb-1">{item.title}</p>}
+                                    {item.text && <p className={contentClasses}>{item.text}</p>}
+                                </div>
+                            );
+                        }
+                        return null;
+                    })}
+                </div>
+            )}
+        </div>
+    );
+};
+
 
 // --- 图标组件 (Icon Components) ---
 const SunIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>;
@@ -232,13 +376,26 @@ const HistoryIcon = ({ className }) => <svg className={className} xmlns="http://
 
 // --- 主应用组件 (Main App Component) ---
 function App() {
-  const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark');
-  const [lang, setLang] = useState(() => localStorage.getItem('lang') || 'zh_CN');
-  const [token, setToken] = useState(() => localStorage.getItem('token'));
+  // Simplified state initializers
+  const [theme, setTheme] = useState('dark');
+  const [lang, setLang] = useState('zh_CN');
+  const [token, setToken] = useState(null);
   const [user, setUser] = useState(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
 
-  const t = (key) => translations[lang][key] || key;
+  // Simplified t function
+  const t = (key) => {
+    if (typeof key !== 'string') {
+      console.warn('Translation key is not a string or is undefined:', key);
+      return String(key || ''); 
+    }
+    const translated = translations[lang][key];
+    if (translated === undefined) {
+      console.warn(`Translation for key "${key}" in language "${lang}" not found.`);
+      return key; 
+    }
+    return translated;
+  };
 
   useEffect(() => {
     const root = window.document.documentElement;
@@ -252,44 +409,32 @@ function App() {
   }, [lang]);
 
   useEffect(() => {
-    const currentToken = localStorage.getItem('token');
-    setToken(currentToken);
-    if (currentToken) {
-      const decoded = decodeJwt(currentToken);
-      if (decoded && decoded.exp * 1000 > Date.now()) {
-        if (decoded.is_guest || currentToken.startsWith('guest-')) {
-           const guestUser = JSON.parse(localStorage.getItem('user'));
-           setUser(guestUser || { email: 'guest', credits: 3, is_verified: true, is_guest: true });
-        } else {
-            const storedUser = localStorage.getItem('user');
-            if (storedUser) setUser(JSON.parse(storedUser));
-        }
-      } else {
-        handleLogout();
-      }
+    // Simulate auth check
+    const storedToken = localStorage.getItem('token');
+    if (storedToken) {
+      // In a real app, you'd validate the token with your backend
+      // For now, we'll just assume a token means logged in
+      setUser({ email: 'user@example.com', credits: 10, is_guest: false }); // Placeholder user
+      setToken(storedToken);
     }
     setIsAuthReady(true);
   }, []);
 
   const handleLoginSuccess = (data) => {
-    localStorage.setItem('token', data.token);
-    localStorage.setItem('user', JSON.stringify(data.user));
     setToken(data.token);
     setUser(data.user);
+    localStorage.setItem('token', data.token);
   };
-  
+
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
     setToken(null);
     setUser(null);
+    localStorage.removeItem('token');
   };
 
   const updateUserCredits = (newCredits) => {
     if (user) {
-      const updatedUser = { ...user, credits: newCredits };
-      setUser(updatedUser);
-      localStorage.setItem('user', JSON.stringify(updatedUser));
+      setUser(prevUser => ({ ...prevUser, credits: newCredits }));
     }
   };
 
@@ -300,15 +445,17 @@ function App() {
   return (
     <AppContext.Provider value={{ theme, setTheme, lang, setLang, t }}>
       <style>{customSelectStyles}</style>
-      <div className="bg-light-background dark:bg-dark-background text-light-text-primary dark:text-dark-text-primary min-h-screen font-sans transition-colors duration-300">
-        <Header user={user} onLogout={handleLogout} />
-        <main className="container mx-auto p-4 sm:p-6 lg:p-8">
-          {user ? (
-            <MainAppPage token={token} user={user} updateUserCredits={updateUserCredits} />
-          ) : (
-            <AuthPage onLoginSuccess={handleLoginSuccess} />
-          )}
-        </main>
+      <div className="bg-light-background dark:bg-dark-background min-h-screen text-light-text-primary dark:text-dark-text-primary transition-colors duration-300">
+        {user ? (
+          <>
+            <Header user={user} onLogout={handleLogout} />
+            <main className="container mx-auto p-4">
+              <MainAppPage token={token} user={user} updateUserCredits={updateUserCredits} />
+            </main>
+          </>
+        ) : (
+          <AuthPage onLoginSuccess={handleLoginSuccess} />
+        )}
       </div>
     </AppContext.Provider>
   );
@@ -377,13 +524,16 @@ const Header = ({ user, onLogout }) => {
 
 // --- 认证页面组件 (Auth Page Component) ---
 const AuthPage = ({ onLoginSuccess }) => {
-  const { t } = useContext(AppContext);
+  const { t, theme, setTheme, lang, setLang } = useContext(AppContext);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isRegisterMode, setIsRegisterMode] = useState(false);
+
+  const toggleTheme = () => setTheme(theme === 'dark' ? 'light' : 'dark');
+  const langOptions = { 'zh_CN': '简体', 'zh_TW': '繁體', 'en': 'EN' };
 
   const handleApiCall = async (apiFunc, successCallback) => {
     setError(''); setMessage(''); setIsLoading(true);
@@ -431,7 +581,24 @@ const AuthPage = ({ onLoginSuccess }) => {
   };
   
   return (
-    <div className="flex flex-col items-center justify-center pt-10 sm:pt-16 px-4">
+    <div className="flex flex-col items-center justify-center min-h-screen pt-10 sm:pt-0 px-4">
+        <div className="absolute top-4 right-4 flex items-center space-x-2">
+            <div className="flex items-center bg-black/5 dark:bg-white/10 p-1 rounded-lg">
+              {Object.keys(langOptions).map(key => (
+                <button 
+                  key={key} 
+                  onClick={() => setLang(key)}
+                  className={`px-3 py-1 text-sm font-bold rounded-md transition-colors duration-200 ${lang === key ? 'bg-light-card dark:bg-dark-card shadow-sm text-light-primary dark:text-dark-primary' : 'text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-primary dark:hover:text-dark-text-primary'}`}
+                >
+                  {langOptions[key]}
+                </button>
+              ))}
+            </div>
+            <button onClick={toggleTheme} className="p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition-colors duration-200" aria-label="Toggle Theme">
+              {theme === 'dark' ? <SunIcon className="w-5 h-5"/> : <MoonIcon className="w-5 h-5"/>}
+            </button>
+        </div>
+
         <div className="text-center mb-10">
             <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight mb-2 flex items-center justify-center space-x-3">
                 <span className="text-4xl sm:text-5xl" role="img" aria-label="rocket">🚀</span>
@@ -545,7 +712,7 @@ const HistoryModal = ({ onClose }) => {
                                     <div className="border-t border-light-border dark:border-dark-border mt-2 pt-3">
                                         <div 
                                             className="prose prose-sm dark:prose-invert max-w-none prose-p:text-light-text-primary dark:prose-p:text-dark-text-primary prose-headings:text-light-text-primary dark:prose-headings:text-dark-text-primary whitespace-pre-wrap leading-relaxed"
-                                            dangerouslySetInnerHTML={{ __html: markdownToHtml(item.outline || t('waitingForInspiration')) }} 
+                                            dangerouslySetInnerHTML={{ __html: processAIOutput(item.outline || t('waitingForInspiration')) }}
                                         />
                                     </div>
                                 )}
@@ -562,6 +729,16 @@ const HistoryModal = ({ onClose }) => {
 };
 
 
+const stripMarkdown = (text) => {
+    if (!text) return '';
+    return text
+        .replace(/^### (.*$)/gim, '$1')      // Remove ### headers
+        .replace(/\*\*(.*?)\*\*/g, '$1')   // Remove **bold**
+        .replace(/\*(.*?)\*/g, '$1')       // Remove *italic*
+        .replace(/^\* (.*$)/gim, '$1')       // Remove * list items
+        .trim();
+};
+
 // --- 主应用页面组件 (Main App Page Component) ---
 const MainAppPage = ({ token, user, updateUserCredits }) => {
     const { t, lang } = useContext(AppContext);
@@ -573,12 +750,74 @@ const MainAppPage = ({ token, user, updateUserCredits }) => {
     const [outline, setOutline] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
+    const [currentPage, setCurrentPage] = useState(0);
+    const [showCard, setShowCard] = useState(true);
+    const [displayPages, setDisplayPages] = useState([]); // New state for flattened pages
+    const [isCopied, setIsCopied] = useState(false); // State for copy button feedback
     
     const outlineRef = useRef(null);
 
     const langCodeMapping = { 'en': 'en', 'zh_CN': 'zh-CN', 'zh_TW': 'zh-TW' };
     
-    useEffect(() => { if (outline) outlineRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, [outline]);
+    const parsedOutline = useMemo(() => parseOutlineToCards(outline), [outline]);
+
+    useEffect(() => {
+        if (parsedOutline.length > 0) {
+            const newDisplayPages = [];
+            const plotOutlineSection = parsedOutline.find(sec => sec.title && (sec.title.includes('情节大纲') || sec.title.includes('大纲内容') || sec.title.includes('Plot Outline')));
+            const characterAnalysisSection = parsedOutline.find(sec => sec.title && (sec.title.includes('角色性格分析') || sec.title.includes('Character Analysis')));
+
+            // 1. Process and add Character Analysis first
+            if (characterAnalysisSection) {
+                newDisplayPages.push(characterAnalysisSection);
+            }
+
+            // 2. Process and add Plot Outline sections
+            if (plotOutlineSection && plotOutlineSection.content) {
+                plotOutlineSection.content.forEach(subSection => {
+                    if(subSection.type === 'sub_section') {
+                        newDisplayPages.push({
+                            type: 'main_section',
+                            title: subSection.title,
+                            text: subSection.text
+                        });
+                    }
+                });
+            }
+
+            setDisplayPages(newDisplayPages);
+            setCurrentPage(0); // Reset to first page
+            setShowCard(true); // Show card
+            if (outline) {
+              outlineRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        } else {
+            setDisplayPages([]); // Clear pages if there's no outline
+        }
+    }, [parsedOutline, outline]);
+
+
+    const handleNavigation = (direction) => {
+        setShowCard(false); // Start fade-out
+        setTimeout(() => {
+            setCurrentPage(prev => {
+                const newPage = direction === 'next' ? Math.min(prev + 1, displayPages.length - 1) : Math.max(prev - 1, 0);
+                return newPage;
+            });
+            setShowCard(true); // Start fade-in for new card
+        }, 300); // Duration of fade-out transition
+    };
+
+    const handleNext = () => handleNavigation('next');
+    const handlePrev = () => handleNavigation('prev');
+
+    const handleCopy = () => {
+        const plainText = stripMarkdown(outline);
+        navigator.clipboard.writeText(plainText).then(() => {
+            setIsCopied(true);
+            setTimeout(() => setIsCopied(false), 2000);
+        });
+    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -602,8 +841,7 @@ const MainAppPage = ({ token, user, updateUserCredits }) => {
                 const errorKey = data.error === 'insufficient_credits' ? 'insufficientCredits' : data.error === 'not_verified' ? 'notVerified' : data.error === '内容被安全系统拦截' ? 'failedToFetch' : 'genericError';
                 throw new Error(t(errorKey) + (data.reason ? ` (${data.reason})` : ''));
             }
-            const processedOutline = (data.outline || '').replace('好的，我将以对这些角色深刻理解和尊重的态度，来构建这个故事。', '').trim();
-            setOutline(processedOutline);
+            setOutline(data.outline);
             const newCredits = data.remaining_credits !== undefined ? data.remaining_credits : user.credits - 1;
             updateUserCredits(newCredits);
         } catch (err) {
@@ -663,16 +901,50 @@ const MainAppPage = ({ token, user, updateUserCredits }) => {
             </div>
 
             {/* Right Column: Output */}
-            <div className="lg:col-span-1 flex flex-col space-y-8">
-                 <div className="bg-light-card dark:bg-dark-card p-6 sm:p-8 rounded-xl shadow-lg flex-grow min-h-[40vh]">
-                    <div ref={outlineRef} className="prose dark:prose-invert max-w-none prose-p:text-light-text-primary dark:prose-p:text-dark-text-primary prose-headings:text-light-text-primary dark:prose-headings:text-dark-text-primary whitespace-pre-wrap leading-relaxed">
+            <div className="lg:col-span-1 flex flex-col space-y-4">
+                 <div className="bg-light-card dark:bg-dark-card p-6 sm:p-8 rounded-xl shadow-lg flex-grow min-h-[40vh] relative overflow-hidden">
+                    <div ref={outlineRef} className="prose dark:prose-invert max-w-none prose-p:text-light-text-primary dark:prose-p:text-dark-text-primary prose-headings:text-light-text-primary dark:prose-headings:text-dark-text-primary whitespace-pre-wrap leading-relaxed h-full flex flex-col justify-between">
                     {isLoading ? (
                             <div className="flex justify-center items-center h-full"><p>{t('inspirationFlowing')}</p></div>
-                    ) : (outline ? (
-                            <div dangerouslySetInnerHTML={{ __html: markdownToHtml(outline) }} />
+                    ) : (displayPages.length > 0 && displayPages[currentPage] ? (
+                            <div className={`flex-grow flex items-center justify-center transition-opacity duration-300 ${showCard ? 'opacity-100' : 'opacity-0'}`}>
+                                <OutlineCard key={currentPage} section={displayPages[currentPage]} />
+                            </div>
                     ) : (
-                            <p className="text-light-text-secondary dark:text-dark-text-secondary">{t('waitingForInspiration')}</p>
+                            <p className="text-light-text-secondary dark:text-dark-text-secondary text-center flex-grow flex items-center justify-center">{t('waitingForInspiration')}</p>
                     ))}
+                    {displayPages.length > 1 && !isLoading && (
+                        <div className="flex justify-between items-center mt-4">
+                            <button 
+                                onClick={handlePrev} 
+                                disabled={currentPage === 0}
+                                className="px-4 py-2 bg-light-primary dark:bg-dark-primary text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed font-mono text-lg"
+                            >
+                                &lt;
+                            </button>
+                            
+                            <div className="flex-grow text-center">
+                                <button
+                                    onClick={handleCopy}
+                                    className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-sm rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                                >
+                                    {isCopied ? t('copied') : t('copyOutline')}
+                                </button>
+                            </div>
+
+                            <span className="text-sm text-light-text-secondary dark:text-dark-text-secondary flex items-center absolute left-1/2 -translate-x-1/2 bottom-3">
+                                {currentPage + 1} / {displayPages.length}
+                            </span>
+
+                            <button 
+                                onClick={handleNext} 
+                                disabled={currentPage === displayPages.length - 1}
+                                className="px-4 py-2 bg-light-primary dark:bg-dark-primary text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed font-mono text-lg"
+                            >
+                                &gt;
+                            </button>
+                        </div>
+                    )}
                     </div>
                 </div>
             </div>
