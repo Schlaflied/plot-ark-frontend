@@ -1,8 +1,34 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { jwtDecode } from 'jwt-decode';
-import './App.css';
-import './index.css'; // 确保引入样式
+import React, { useState, useEffect, createContext, useContext, useRef } from 'react';
 
+// --- 自定义样式 (Custom Styles) ---
+// 这段样式专门用来修复<select>下拉选项的字体颜色问题
+const customSelectStyles = `
+  .custom-select-force-black-options option {
+    color: black;
+  }
+`;
+
+// --- JWT解码辅助函数 (JWT Decode Helper) ---
+const decodeJwt = (token) => {
+  // 游客token不包含JWT结构，直接返回一个模拟的payload
+  if (token && token.startsWith('guest-')) {
+    return { is_guest: true, exp: Date.now() / 1000 + 3600 }; // 假设游客token有效期为1小时
+  }
+  try {
+    const base64Url = token.split('.')[1];
+    if (!base64Url) return null;
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+    }).join(''));
+    return JSON.parse(jsonPayload);
+  } catch (e) {
+    console.error("Failed to decode JWT:", e);
+    return null;
+  }
+};
+
+// --- 配置 (Configuration) ---
 const API_BASE_URL = 'https://plot-ark-backend-vpy736x7ja-uc.a.run.app';
 
 const API_ENDPOINTS = {
@@ -12,113 +38,195 @@ const API_ENDPOINTS = {
   history: `${API_BASE_URL}/api/history`,
 };
 
+// --- 多语言文本 (Internationalization) ---
 const translations = {
-  zh: {
+  en: {
+    title: 'Plot Ark',
+    subtitle: 'Input Couple/Pairing settings and concepts to generate your unique story outline',
+    authWelcome: 'Welcome to Plot Ark',
+    authSubtitle: 'Log in or register to unleash your creative potential',
+    emailLabel: 'Email',
+    passwordLabel: 'Password',
+    loginButton: 'Login',
+    registerButton: 'Register',
+    guestModeButton: 'Guest Mode',
+    noAccount: "Don't have an account?",
+    clickToRegister: 'Click here to register',
+    logoutButton: 'Logout',
+    generateButton: 'Launch Ark',
+    generatingButton: 'Generating...',
+    character1: 'Character 1',
+    character2: 'Character 2',
+    gender: 'Gender',
+    male: 'Male',
+    female: 'Female',
+    none: 'N/A',
+    character1Placeholder: 'Example: Ash Lynx, a charismatic gang leader in New York with a traumatic past, extraordinary intelligence, and blonde hair...',
+    character2Placeholder: 'Example: Eiji Okumura, a kind-hearted Japanese photographer who becomes an unwavering light in Ash\'s life...',
+    plotPromptPlaceholder: 'Example: What if, years later, they reunite in modern Japan, but Ash has lost his memories?',
+    historyTitle: 'Creation History',
+    loadButton: 'Load',
+    deleteButton: 'Delete',
+    confirmDelete: 'Are you sure you want to delete this entry?',
+    userCredits: 'Credits: {credits}',
+    freeCredits: 'Free Credits: {credits}',
+    loginToContinue: 'Login / Register',
+    error: 'Error',
+    success: 'Success',
+    registerSuccess: 'Registration successful! Please check your email to activate your account.',
+    insufficientCredits: 'Insufficient credits. Please top up.',
+    notVerified: 'Your account is not verified. Please check your email.',
+    waitingForInspiration: 'Waiting for your inspiration to set sail...',
+    inspirationFlowing: 'Inspiration is flowing...',
+    emailExists: 'This email is already registered.',
+    invalidCredentials: 'Invalid email or password.',
+    genericError: 'An unexpected error occurred.',
+    failedToFetch: 'Failed to fetch',
+  },
+  zh_CN: {
     title: '灵感方舟',
-    authTitle: '欢迎来到灵感方舟',
+    subtitle: '输入CP设定与梗概，生成专属你的故事大纲',
+    authWelcome: '登录方舟',
     authSubtitle: '登录或注册以释放你的创作潜力',
     emailLabel: '邮箱',
     passwordLabel: '密码',
     loginButton: '登录',
     registerButton: '注册',
-    guestModeButton: '游客模式 (剩余 {tries} 次)',
-    noGuestTries: '游客次数已用尽',
+    guestModeButton: '游客模式',
+    noAccount: '还没有账号？',
+    clickToRegister: '点此注册',
     logoutButton: '退出登录',
     generateButton: '启动方舟',
-    generatingButton: '生成中...',
-    character1Placeholder: '角色1 (Ash): 外貌，性格，背景故事...',
-    character2Placeholder: '角色2 (Eiji): 外貌，性格，背景故事...',
-    plotPromptPlaceholder: '核心梗概 (例如：Ash 和 Eiji 在现代东京的第一次相遇)',
+    generatingButton: '生成中…',
+    character1: '角色 1',
+    character2: '角色 2',
+    gender: '性别',
+    male: '男',
+    female: '女',
+    none: '无性别',
+    character1Placeholder: '例如：亚修·林克斯，一个在纽约街头长大、背景复杂、魅力超凡的金发少年...',
+    character2Placeholder: '例如：奥村英二，一位善良的日本摄影师，他成为了亚修生命中坚定不移的光...',
+    plotPromptPlaceholder: '例如：如果多年以后，他们在现代日本重逢，而亚修失去了记忆，会发生什么？',
     historyTitle: '创作历史',
+    loadButton: '载入',
     deleteButton: '删除',
     confirmDelete: '确定要删除这条历史记录吗？',
     userCredits: '创作点数: {credits}',
-    loginToContinue: '登录/注册以继续',
-  }
+    freeCredits: '免费额度: {credits}',
+    loginToContinue: '登录 / 注册',
+    error: '错误',
+    success: '成功',
+    registerSuccess: '注册成功！请检查您的邮箱以激活账户。',
+    insufficientCredits: '创作点数不足，请充值。',
+    notVerified: '您的账户尚未激活，请检查邮箱。',
+    waitingForInspiration: '在这里等待你的灵感方舟起航…',
+    inspirationFlowing: '灵感正在迸发…',
+    emailExists: '该邮箱已被注册。',
+    invalidCredentials: '邮箱或密码错误。',
+    genericError: '发生未知错误。',
+    failedToFetch: '请求失败',
+  },
+  zh_TW: {
+    title: '靈感方舟',
+    subtitle: '輸入CP設定與梗概，生成專屬您的故事大綱',
+    authWelcome: '登入方舟',
+    authSubtitle: '登入或註冊以釋放您的創作潛力',
+    emailLabel: '郵箱',
+    passwordLabel: '密碼',
+    loginButton: '登入',
+    registerButton: '註冊',
+    guestModeButton: '遊客模式',
+    noAccount: '還沒有帳號？',
+    clickToRegister: '點此註冊',
+    logoutButton: '登出',
+    generateButton: '啟動方舟',
+    generatingButton: '生成中…',
+    character1: '角色 1',
+    character2: '角色 2',
+    gender: '性別',
+    male: '男',
+    female: '女',
+    none: '無性別',
+    character1Placeholder: '例如：亞修·林克斯，一個在紐約街頭長大、背景複雜、魅力超凡的金髮少年...',
+    character2Placeholder: '例如：奧村英二，一位善良的日本攝影師，他成為了亞修生命中堅定不移的光...',
+    plotPromptPlaceholder: '例如：如果多年以後，他們在現代日本重逢，而亞修失去了記憶，會發生什麼？',
+    historyTitle: '創作歷史',
+    loadButton: '載入',
+    deleteButton: '刪除',
+    confirmDelete: '確定要刪除這條歷史記錄嗎？',
+    userCredits: '創作點數: {credits}',
+    freeCredits: '免費額度: {credits}',
+    loginToContinue: '登入 / 註冊',
+    error: '錯誤',
+    success: '成功',
+    registerSuccess: '註冊成功！請檢查您的郵箱以啟用帳戶。',
+    insufficientCredits: '創作點數不足，請儲值。',
+    notVerified: '您的帳戶尚未啟用，請檢查郵箱。',
+    genericError: '發生未知錯誤。',
+    failedToFetch: '請求失敗',
+  },
 };
 
+// --- 上下文 (Context for Theme & Language) ---
+const AppContext = createContext();
+
+// --- 图标组件 (Icon Components) ---
+const SunIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>;
+const MoonIcon = ({ className }) => <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>;
+
+// --- 主应用组件 (Main App Component) ---
 function App() {
-  const [lang, setLang] = useState('zh');
-  const [token, setToken] = useState(localStorage.getItem('token'));
+  const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark');
+  const [lang, setLang] = useState(() => localStorage.getItem('lang') || 'zh_CN');
+  const [token, setToken] = useState(() => localStorage.getItem('token'));
   const [user, setUser] = useState(null);
-  const [currentView, setCurrentView] = useState('auth');
-  const [error, setError] = useState('');
-  const t = translations[lang];
+  const [isAuthReady, setIsAuthReady] = useState(false);
+
+  const t = (key) => translations[lang][key] || key;
 
   useEffect(() => {
-    const storedToken = localStorage.getItem('token');
-    if (storedToken) {
-      try {
-        const decodedToken = jwtDecode(storedToken);
-        if (decodedToken.exp * 1000 < Date.now() - 60000) {
-          handleLogout();
+    const root = window.document.documentElement;
+    root.classList.remove(theme === 'dark' ? 'light' : 'dark');
+    root.classList.add(theme);
+    localStorage.setItem('theme', theme);
+  }, [theme]);
+
+  useEffect(() => {
+    localStorage.setItem('lang', lang);
+  }, [lang]);
+
+  useEffect(() => {
+    const currentToken = localStorage.getItem('token');
+    setToken(currentToken);
+    if (currentToken) {
+      const decoded = decodeJwt(currentToken);
+      if (decoded && decoded.exp * 1000 > Date.now()) {
+        if (decoded.is_guest || currentToken.startsWith('guest-')) {
+           const guestUser = JSON.parse(localStorage.getItem('user'));
+           setUser(guestUser || { email: 'guest', credits: 3, is_verified: true, is_guest: true });
         } else {
-          setToken(storedToken);
-          const storedUser = localStorage.getItem('user');
-          if (storedUser) {
-            setUser(JSON.parse(storedUser));
-          }
-          setCurrentView('app');
+            const storedUser = localStorage.getItem('user');
+            if (storedUser) setUser(JSON.parse(storedUser));
         }
-      } catch (e) {
-        console.error("无效的Token格式:", e);
+      } else {
         handleLogout();
       }
     }
+    setIsAuthReady(true);
   }, []);
 
-  const handleLogin = async (email, password) => {
-    setError('');
-    try {
-      const response = await fetch(API_ENDPOINTS.login, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.message || '登录失败');
-      }
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('user', JSON.stringify(data.user));
-      setToken(data.token);
-      setUser(data.user);
-      setCurrentView('app');
-    } catch (err) {
-      setError(err.message);
-    }
+  const handleLoginSuccess = (data) => {
+    localStorage.setItem('token', data.token);
+    localStorage.setItem('user', JSON.stringify(data.user));
+    setToken(data.token);
+    setUser(data.user);
   };
-
-  const handleRegister = async (email, password) => {
-    setError('');
-    try {
-      const response = await fetch(API_ENDPOINTS.register, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.message || '注册失败');
-      }
-      alert('注册成功！请检查您的邮箱以激活账户。');
-    } catch (err) {
-      setError(err.message);
-    }
-  };
-
-  const handleGuestMode = () => {
-    setUser(null);
-    setToken(null);
-    setCurrentView('app');
-  };
-
+  
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     setToken(null);
     setUser(null);
-    setCurrentView('auth');
   };
 
   const updateUserCredits = (newCredits) => {
@@ -129,173 +237,338 @@ function App() {
     }
   };
 
+  if (!isAuthReady) {
+    return <div className="bg-light-background dark:bg-dark-background min-h-screen" />;
+  }
+
   return (
-    <div className="App bg-gray-900 text-white min-h-screen font-sans">
-      <Header t={t} user={user} onLogout={handleLogout} onLoginClick={() => setCurrentView('auth')} isGuest={!user && currentView === 'app'} />
-      <main className="container mx-auto p-4">
-        {currentView === 'auth' ? (
-          <AuthPage t={t} onLogin={handleLogin} onRegister={handleRegister} onGuestMode={handleGuestMode} error={error} />
-        ) : (
-          <MainApp t={t} token={token} user={user} updateUserCredits={updateUserCredits} />
-        )}
-      </main>
-    </div>
+    <AppContext.Provider value={{ theme, setTheme, lang, setLang, t }}>
+      <style>{customSelectStyles}</style>
+      <div className="bg-light-background dark:bg-dark-background text-light-text-primary dark:text-dark-text-primary min-h-screen font-sans transition-colors duration-300">
+        <Header user={user} onLogout={handleLogout} />
+        <main className="container mx-auto p-4 sm:p-6 lg:p-8">
+          {user ? (
+            <MainAppPage token={token} user={user} updateUserCredits={updateUserCredits} />
+          ) : (
+            <AuthPage onLoginSuccess={handleLoginSuccess} />
+          )}
+        </main>
+      </div>
+    </AppContext.Provider>
   );
 }
 
-const Header = ({ t, user, onLogout, onLoginClick, isGuest }) => (
-    <header className="p-4 flex justify-between items-center bg-gray-800 shadow-md">
-      <h1 className="text-2xl font-bold tracking-wider">{t.title}</h1>
-      <nav>
-        {user ? (
-          <div className="flex items-center space-x-4">
-            <span className="text-sm text-gray-300">{t.userCredits.replace('{credits}', user.credits)}</span>
-            <span className="text-sm font-medium">{user.email}</span>
-            <button onClick={onLogout} className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition-colors duration-200">{t.logoutButton}</button>
+// --- 头部组件 (Header Component) ---
+const Header = ({ user, onLogout }) => {
+  const { theme, setTheme, lang, setLang, t } = useContext(AppContext);
+  
+  const toggleTheme = () => setTheme(theme === 'dark' ? 'light' : 'dark');
+
+  const langOptions = {
+    'zh_CN': '简体',
+    'zh_TW': '繁體',
+    'en': 'EN'
+  };
+  
+  return (
+    <header className="bg-light-card dark:bg-dark-card shadow-sm sticky top-0 z-10 transition-colors duration-300">
+      <div className="container mx-auto p-4 flex justify-between items-center">
+        <div className="flex items-center space-x-3">
+            <span className="text-2xl" role="img" aria-label="rocket">🚀</span>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-wider">{t('title')}</h1>
+        </div>
+        <div className="flex items-center space-x-2 sm:space-x-4">
+          {user && (
+            <span className="hidden sm:inline text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary">
+                {user.is_guest ? t('freeCredits').replace('{credits}', user.credits) : `${user.email} (${t('userCredits').replace('{credits}', user.credits)})`}
+            </span>
+          )}
+          
+          <div className="flex items-center bg-black/5 dark:bg-white/10 p-1 rounded-lg">
+            {Object.keys(langOptions).map(key => (
+              <button 
+                key={key} 
+                onClick={() => setLang(key)}
+                className={`px-3 py-1 text-sm font-bold rounded-md transition-colors duration-200 ${lang === key ? 'bg-light-card dark:bg-dark-card shadow-sm text-light-primary dark:text-dark-primary' : 'text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-primary dark:hover:text-dark-text-primary'}`}
+              >
+                {langOptions[key]}
+              </button>
+            ))}
           </div>
-        ) : isGuest ? (
-           <button onClick={onLoginClick} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors duration-200">{t.loginToContinue}</button>
-        ) : null}
-      </nav>
+
+          <button onClick={toggleTheme} className="p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition-colors duration-200" aria-label="Toggle Theme">
+            {theme === 'dark' ? <SunIcon className="w-5 h-5"/> : <MoonIcon className="w-5 h-5"/>}
+          </button>
+          
+          {user && (
+            <button onClick={onLogout} className="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg text-sm transition-colors duration-200">{t('logoutButton')}</button>
+          )}
+        </div>
+      </div>
     </header>
-);
+  );
+};
 
-const AuthPage = ({ t, onLogin, onRegister, onGuestMode, error }) => {
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
-    const guestTries = parseInt(localStorage.getItem('guestTries') || '3');
+// --- 认证页面组件 (Auth Page Component) ---
+const AuthPage = ({ onLoginSuccess }) => {
+  const { t } = useContext(AppContext);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [isRegisterMode, setIsRegisterMode] = useState(false);
 
-    const handleSubmitLogin = (e) => { e.preventDefault(); onLogin(email, password); };
-    const handleSubmitRegister = (e) => { e.preventDefault(); onRegister(email, password); };
-    const handleGuestClick = () => { if (guestTries > 0) { onGuestMode(); } };
+  const handleApiCall = async (apiFunc, successCallback) => {
+    setError(''); setMessage(''); setIsLoading(true);
+    try {
+      const response = await apiFunc();
+      const data = await response.json();
+      if (!response.ok) {
+        const errorKey = data.error === 'email_exists' ? 'emailExists' : data.error === 'invalid_credentials' ? 'invalidCredentials' : 'genericError';
+        throw new Error(t(errorKey));
+      }
+      successCallback(data);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-    return (
-        <div className="max-w-md mx-auto mt-10 p-8 bg-gray-800 rounded-xl shadow-lg">
-            <h2 className="text-3xl font-bold text-center mb-2">{t.authTitle}</h2>
-            <p className="text-center text-gray-400 mb-8">{t.authSubtitle}</p>
-            {error && <p className="bg-red-800 border border-red-600 text-red-200 px-4 py-3 rounded-lg relative mb-6 text-center">{error}</p>}
-            <form>
-                <div className="mb-4">
-                    <label htmlFor="email" className="block text-gray-300 text-sm font-bold mb-2">{t.emailLabel}</label>
-                    <input type="email" id="email" value={email} onChange={(e) => setEmail(e.target.value)} className="shadow-inner appearance-none border border-gray-600 rounded-lg w-full py-3 px-4 bg-gray-700 text-white leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500" />
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (isRegisterMode) {
+      handleApiCall(() => fetch(API_ENDPOINTS.register, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      }), () => {
+          setMessage(t('registerSuccess'));
+          setIsRegisterMode(false);
+      });
+    } else {
+      handleApiCall(() => fetch(API_ENDPOINTS.login, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      }), onLoginSuccess);
+    }
+  };
+  
+  const handleGuestMode = () => {
+    const guestUser = { email: 'guest', credits: 3, is_verified: true, is_guest: true };
+    onLoginSuccess({
+        token: `guest-${Date.now()}`,
+        user: guestUser
+    });
+  };
+  
+  return (
+    <div className="flex flex-col items-center justify-center pt-10 sm:pt-16 px-4">
+        <div className="text-center mb-10">
+            <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight mb-2 flex items-center justify-center space-x-3">
+                <span className="text-4xl sm:text-5xl" role="img" aria-label="rocket">🚀</span>
+                <span>{t('title')}</span>
+            </h1>
+            <p className="text-lg text-light-text-secondary dark:text-dark-text-secondary">{t('subtitle')}</p>
+        </div>
+        <div className="max-w-md w-full space-y-8 bg-light-card dark:bg-dark-card p-8 sm:p-10 rounded-2xl shadow-lg">
+            <div>
+                <h2 className="text-center text-2xl font-bold">{isRegisterMode ? t('registerButton') : t('authWelcome')}</h2>
+            </div>
+            {error && <div className="bg-red-500/10 border border-light-error/30 dark:border-dark-error/30 text-light-error dark:text-dark-error px-4 py-3 rounded-lg text-center text-sm" role="alert">{error}</div>}
+            {message && <div className="bg-green-500/10 border border-light-success/30 dark:border-dark-success/30 text-light-success dark:text-dark-success px-4 py-3 rounded-lg text-center text-sm" role="alert">{message}</div>}
+            <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+                <div className="rounded-md -space-y-px">
+                    <input id="email-address" name="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className="appearance-none rounded-none relative block w-full px-3 py-3 border border-light-border dark:border-dark-border placeholder-gray-500 bg-light-card dark:bg-dark-card rounded-t-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-light-primary dark:focus:ring-dark-primary dark:focus:ring-offset-dark-card sm:text-sm" placeholder={t('emailLabel')} />
+                    <input id="password" name="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required className="appearance-none rounded-none relative block w-full px-3 py-3 border border-light-border dark:border-dark-border placeholder-gray-500 bg-light-card dark:bg-dark-card rounded-b-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-light-primary dark:focus:ring-dark-primary dark:focus:ring-offset-dark-card sm:text-sm" placeholder={t('passwordLabel')} />
                 </div>
-                <div className="mb-6">
-                    <label htmlFor="password" className="block text-gray-300 text-sm font-bold mb-2">{t.passwordLabel}</label>
-                    <input type="password" id="password" value={password} onChange={(e) => setPassword(e.target.value)} className="shadow-inner appearance-none border border-gray-600 rounded-lg w-full py-3 px-4 bg-gray-700 text-white mb-3 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
-                <div className="flex flex-col space-y-4">
-                    <button type="button" onClick={handleSubmitLogin} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg w-full transition-colors duration-200">{t.loginButton}</button>
-                    <button type="button" onClick={handleSubmitRegister} className="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg w-full transition-colors duration-200">{t.registerButton}</button>
-                    <button type="button" onClick={handleGuestClick} disabled={guestTries <= 0} className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 px-4 rounded-lg w-full transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed">
-                        {guestTries > 0 ? t.guestModeButton.replace('{tries}', guestTries) : t.noGuestTries}
+                <div>
+                    <button type="submit" disabled={isLoading} className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-light-primary hover:bg-light-primary-hover dark:bg-dark-primary dark:hover:bg-dark-primary-hover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-light-primary dark:focus:ring-dark-primary dark:focus:ring-offset-dark-card disabled:opacity-50 transition-colors">
+                        {isLoading ? '...' : (isRegisterMode ? t('registerButton') : t('loginButton'))}
                     </button>
                 </div>
             </form>
+             <div className="text-center text-sm">
+                <a href="#" onClick={(e) => { e.preventDefault(); setIsRegisterMode(!isRegisterMode); setError(''); setMessage(''); }} className="font-medium text-light-primary hover:text-light-primary-hover dark:text-dark-primary dark:hover:text-dark-primary-hover transition-colors">
+                    {isRegisterMode ? '已有账号？返回登录' : t('noAccount') + ' ' + t('clickToRegister')}
+                </a>
+             </div>
+            <div className="relative">
+                <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-light-border dark:border-dark-border" /></div>
+                <div className="relative flex justify-center text-sm"><span className="px-2 bg-light-card dark:bg-dark-card text-light-text-secondary dark:text-dark-text-secondary">OR</span></div>
+            </div>
+             <div>
+                <button type="button" onClick={handleGuestMode} className="group relative w-full flex justify-center py-3 px-4 border border-light-border dark:border-dark-border text-sm font-medium rounded-md hover:bg-black/5 dark:hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 dark:focus:ring-offset-dark-card transition-colors">
+                    {t('guestModeButton')}
+                </button>
+            </div>
         </div>
-    );
+    </div>
+  );
 };
 
-const MainApp = ({ t, token, user, updateUserCredits }) => {
+// --- 主应用页面组件 (Main App Page Component) ---
+const MainAppPage = ({ token, user, updateUserCredits }) => {
+    const { t, lang } = useContext(AppContext);
     const [character1, setCharacter1] = useState('');
+    const [gender1, setGender1] = useState('male');
     const [character2, setCharacter2] = useState('');
+    const [gender2, setGender2] = useState('male');
     const [plotPrompt, setPlotPrompt] = useState('');
     const [outline, setOutline] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState('');
     const [history, setHistory] = useState([]);
-    const [guestTries, setGuestTries] = useState(() => parseInt(localStorage.getItem('guestTries') || '3'));
     
-    const isGuest = !user;
+    const isGuest = user?.is_guest;
     const outlineRef = useRef(null);
 
-    useEffect(() => { if (!isGuest) { fetchHistory(); } }, [isGuest, token]);
-    useEffect(() => { if (outline && outlineRef.current) { outlineRef.current.scrollIntoView({ behavior: 'smooth' }); } }, [outline]);
+    const langCodeMapping = { 'en': 'en', 'zh_CN': 'zh-CN', 'zh_TW': 'zh-TW' };
 
     const fetchHistory = async () => {
-        if (!token) return;
+        if (!token || isGuest) return;
         try {
             const response = await fetch(API_ENDPOINTS.history, { headers: { 'Authorization': `Bearer ${token}` } });
-            if (response.ok) {
-                const data = await response.json();
-                setHistory(data);
-            }
-        } catch (error) { console.error('获取历史记录失败:', error); }
+            if (response.ok) setHistory(await response.json());
+        } catch (error) { console.error('Failed to fetch history:', error); }
     };
-    
-    const handleDeleteHistory = async (id) => {
-        if (window.confirm(t.confirmDelete)) {
-             if (!token) return;
-             try {
-                const response = await fetch(`${API_ENDPOINTS.history}/${id}`, {
-                    method: 'DELETE',
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                if (response.ok) { fetchHistory(); }
-             } catch (error) { console.error('删除历史记录失败:', error); }
-        }
-    };
+
+    useEffect(() => { fetchHistory(); }, [token, isGuest]);
+    useEffect(() => { if (outline) outlineRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, [outline]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (isGuest && guestTries <= 0) { alert(t.noGuestTries); return; }
-        setIsLoading(true); setOutline('');
+        if (user.credits <= 0) { setError(t('insufficientCredits')); return; }
+        setIsLoading(true); setOutline(''); setError('');
+        
+        const fullCharacter1 = `(${t(gender1)}) ${character1}`;
+        const fullCharacter2 = `(${t(gender2)}) ${character2}`;
+
         const headers = { 'Content-Type': 'application/json' };
-        if (token) { headers['Authorization'] = `Bearer ${token}`; }
+        if (token && !isGuest) headers['Authorization'] = `Bearer ${token}`;
 
         try {
             const response = await fetch(API_ENDPOINTS.generate, {
                 method: 'POST',
-                headers: headers,
-                body: JSON.stringify({ character1, character2, plot_prompt: plotPrompt, language: 'zh-CN' }),
+                headers,
+                body: JSON.stringify({ character1: fullCharacter1, character2: fullCharacter2, plot_prompt: plotPrompt, language: langCodeMapping[lang] }),
             });
             const data = await response.json();
-            if (!response.ok) { throw new Error(data.message || '生成大纲时出错'); }
-            setOutline(data.outline);
-            if (isGuest) {
-                const newTries = guestTries - 1;
-                setGuestTries(newTries);
-                localStorage.setItem('guestTries', newTries);
-            } else if (data.remaining_credits !== undefined) {
-                updateUserCredits(data.remaining_credits);
-                fetchHistory();
+            if (!response.ok) {
+                const errorKey = data.error === 'insufficient_credits' ? 'insufficientCredits' : data.error === 'not_verified' ? 'notVerified' : data.error === '内容被安全系统拦截' ? 'failedToFetch' : 'genericError';
+                throw new Error(t(errorKey) + (data.reason ? ` (${data.reason})` : ''));
             }
+            setOutline(data.outline);
+            const newCredits = data.remaining_credits !== undefined ? data.remaining_credits : user.credits - 1;
+            updateUserCredits(newCredits);
+            if (!isGuest) fetchHistory();
         } catch (err) {
-            alert(`错误: ${err.message}`);
+            setError(err.message);
         } finally {
             setIsLoading(false);
         }
     };
     
+    const handleDeleteHistory = async (id) => {
+        if (window.confirm(t('confirmDelete'))) {
+             if (!token || isGuest) return;
+             try {
+                const response = await fetch(`${API_ENDPOINTS.history}/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+                if (response.ok) fetchHistory();
+             } catch (error) { console.error('Failed to delete history:', error); }
+        }
+    };
+
+    const loadFromHistory = (item) => {
+        setCharacter1(item.character1_setting.replace(/^\(.*\)\s*/, ''));
+        setCharacter2(item.character2_setting.replace(/^\(.*\)\s*/, ''));
+        // logic to extract gender can be added here if needed
+        setPlotPrompt(item.core_prompt);
+        setOutline(item.generated_outline);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    const sharedTextareaClass = "w-full rounded-lg p-3 bg-light-background dark:bg-dark-input border border-light-border dark:border-dark-border focus:outline-none focus:ring-2 focus:ring-light-primary dark:focus:ring-dark-primary dark:focus:ring-offset-dark-card transition-all duration-200 shadow-sm text-sm";
+    const sharedSelectClass = "w-full rounded-lg p-3 bg-light-background dark:bg-dark-input border border-light-border dark:border-dark-border focus:outline-none focus:ring-2 focus:ring-light-primary dark:focus:ring-dark-primary dark:focus:ring-offset-dark-card transition-all duration-200 shadow-sm text-sm custom-select-force-black-options text-gray-900";
+
     return (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-6">
-            <div className="md:col-span-1">
-                <form onSubmit={handleSubmit} className="bg-gray-800 p-6 rounded-xl shadow-lg">
-                    <textarea value={character1} onChange={(e) => setCharacter1(e.target.value)} placeholder={t.character1Placeholder} className="textarea-style" rows="5"></textarea>
-                    <textarea value={character2} onChange={(e) => setCharacter2(e.target.value)} placeholder={t.character2Placeholder} className="textarea-style" rows="5"></textarea>
-                    <textarea value={plotPrompt} onChange={(e) => setPlotPrompt(e.target.value)} placeholder={t.plotPromptPlaceholder} className="textarea-style" rows="3"></textarea>
-                    <button type="submit" disabled={isLoading} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-wait">
-                        {isLoading ? t.generatingButton : t.generateButton}
-                    </button>
-                </form>
-                 {!isGuest && (
-                    <div className="mt-8 bg-gray-800 p-6 rounded-xl shadow-lg">
-                        <h3 className="text-xl font-bold mb-4">{t.historyTitle}</h3>
-                        <div className="max-h-96 overflow-y-auto pr-2">
-                           {history && history.map(item => (
-                               <div key={item.id} className="bg-gray-700 p-4 rounded-lg mb-3">
-                                   <p className="font-semibold truncate">{item.core_prompt}</p>
-                                   <p className="text-xs text-gray-400">{new Date(item.created_at).toLocaleString()}</p>
-                                   <button onClick={() => {setPlotPrompt(item.core_prompt); setCharacter1(item.character1_setting); setCharacter2(item.character2_setting);}} className="text-blue-400 hover:text-blue-300 text-xs mr-4">载入</button>
-                                   <button onClick={() => handleDeleteHistory(item.id)} className="text-red-400 hover:text-red-300 text-xs">{t.deleteButton}</button>
-                               </div>
-                           ))}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-6">
+            {/* Left Column: Input Form */}
+            <div className="lg:col-span-1 bg-light-card dark:bg-dark-card p-6 sm:p-8 rounded-xl shadow-lg h-fit">
+                <form onSubmit={handleSubmit}>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6">
+                        {/* Character 1 */}
+                        <div>
+                            <label className="block text-sm font-bold mb-2">{t('character1')}</label>
+                            <textarea value={character1} onChange={(e) => setCharacter1(e.target.value)} placeholder={t('character1Placeholder')} className={sharedTextareaClass} rows="6" required></textarea>
+                            <label className="block text-sm font-bold mb-2 mt-4">{t('gender')}</label>
+                            <select value={gender1} onChange={(e) => setGender1(e.target.value)} className={sharedSelectClass}>
+                                <option value="male">{t('male')}</option>
+                                <option value="female">{t('female')}</option>
+                                <option value="none">{t('none')}</option>
+                            </select>
+                        </div>
+                        {/* Character 2 */}
+                        <div>
+                            <label className="block text-sm font-bold mb-2">{t('character2')}</label>
+                            <textarea value={character2} onChange={(e) => setCharacter2(e.target.value)} placeholder={t('character2Placeholder')} className={sharedTextareaClass} rows="6" required></textarea>
+                             <label className="block text-sm font-bold mb-2 mt-4">{t('gender')}</label>
+                            <select value={gender2} onChange={(e) => setGender2(e.target.value)} className={sharedSelectClass}>
+                                <option value="male">{t('male')}</option>
+                                <option value="female">{t('female')}</option>
+                                <option value="none">{t('none')}</option>
+                            </select>
                         </div>
                     </div>
-                 )}
+
+                    <div>
+                        <label className="block text-sm font-bold mb-2">核心梗 / 场景</label>
+                        <textarea value={plotPrompt} onChange={(e) => setPlotPrompt(e.target.value)} placeholder={t('plotPromptPlaceholder')} className={`${sharedTextareaClass} min-h-[100px]`} required></textarea>
+                    </div>
+
+                    <div className="mt-6">
+                        <button type="submit" disabled={isLoading} className="w-full bg-light-primary hover:bg-light-primary-hover dark:bg-dark-primary dark:hover:bg-dark-primary-hover text-white font-bold py-3 px-4 rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-wait flex items-center justify-center">
+                            {isLoading && <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>}
+                            {isLoading ? t('generatingButton') : t('generateButton')}
+                        </button>
+                    </div>
+                     {error && <div className="mt-4 bg-red-500/10 border border-light-error/30 dark:border-dark-error/30 text-light-error dark:text-dark-error px-4 py-3 rounded-lg text-center text-sm" role="alert">{error}</div>}
+                </form>
             </div>
-            <div className="md:col-span-2 bg-gray-800 p-6 rounded-xl shadow-lg">
-                <div ref={outlineRef} className="prose prose-invert max-w-none prose-p:text-gray-300 prose-headings:text-white whitespace-pre-wrap">
-                   {isLoading ? <p>灵感正在迸发...</p> : (outline || <p>在这里等待你的灵感方舟起航...</p>)}
+
+            {/* Right Column: Output & History */}
+            <div className="lg:col-span-1 flex flex-col space-y-8">
+                 <div className="bg-light-card dark:bg-dark-card p-6 sm:p-8 rounded-xl shadow-lg flex-grow min-h-[40vh]">
+                    <div ref={outlineRef} className="prose dark:prose-invert max-w-none prose-p:text-light-text-primary dark:prose-p:text-dark-text-primary prose-headings:text-light-text-primary dark:prose-headings:text-dark-text-primary whitespace-pre-wrap leading-relaxed">
+                    {isLoading ? (
+                            <div className="flex justify-center items-center h-full"><p>{t('inspirationFlowing')}</p></div>
+                    ) : (outline ? (
+                            <div dangerouslySetInnerHTML={{ __html: outline.replace(/\n/g, '<br />') }} />
+                    ) : (
+                            <p className="text-light-text-secondary dark:text-dark-text-secondary">{t('waitingForInspiration')}</p>
+                    ))}
+                    </div>
                 </div>
+
+                {!isGuest && (
+                    <div className="bg-light-card dark:bg-dark-card p-6 rounded-xl shadow-lg">
+                        <h3 className="text-xl font-bold mb-4">{t('historyTitle')}</h3>
+                        <div className="max-h-64 overflow-y-auto pr-2 space-y-3 -mr-2">
+                        {history.length > 0 ? history.map(item => (
+                            <div key={item.id} className="bg-light-background dark:bg-dark-card/50 p-4 rounded-lg">
+                                <p className="font-semibold truncate text-sm mb-1">{item.core_prompt}</p>
+                                <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mb-2">{new Date(item.created_at).toLocaleString()}</p>
+                                <div>
+                                    <button onClick={() => loadFromHistory(item)} className="text-light-primary dark:text-dark-primary hover:underline text-xs mr-4 font-medium">{t('loadButton')}</button>
+                                    <button onClick={() => handleDeleteHistory(item.id)} className="text-red-500 hover:underline text-xs font-medium">{t('deleteButton')}</button>
+                                </div>
+                            </div>
+                        )) : <p className="text-sm text-light-text-secondary dark:text-dark-text-secondary">{t('waitingForInspiration')}</p>}
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );
