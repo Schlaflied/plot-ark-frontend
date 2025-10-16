@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { jwtDecode } from 'jwt-decode';
 import './App.css';
-import './index.css';
+import './index.css'; // 确保引入样式
 
 const API_BASE_URL = 'https://plot-ark-backend-vpy736x7ja-uc.a.run.app';
 
@@ -210,8 +210,29 @@ const MainApp = ({ t, token, user, updateUserCredits }) => {
     useEffect(() => { if (!isGuest) { fetchHistory(); } }, [isGuest, token]);
     useEffect(() => { if (outline && outlineRef.current) { outlineRef.current.scrollIntoView({ behavior: 'smooth' }); } }, [outline]);
 
-    const fetchHistory = async () => { /* ... */ };
-    const handleDeleteHistory = async (id) => { /* ... */ };
+    const fetchHistory = async () => {
+        if (!token) return;
+        try {
+            const response = await fetch(API_ENDPOINTS.history, { headers: { 'Authorization': `Bearer ${token}` } });
+            if (response.ok) {
+                const data = await response.json();
+                setHistory(data);
+            }
+        } catch (error) { console.error('获取历史记录失败:', error); }
+    };
+    
+    const handleDeleteHistory = async (id) => {
+        if (window.confirm(t.confirmDelete)) {
+             if (!token) return;
+             try {
+                const response = await fetch(`${API_ENDPOINTS.history}/${id}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (response.ok) { fetchHistory(); }
+             } catch (error) { console.error('删除历史记录失败:', error); }
+        }
+    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -235,6 +256,7 @@ const MainApp = ({ t, token, user, updateUserCredits }) => {
                 localStorage.setItem('guestTries', newTries);
             } else if (data.remaining_credits !== undefined) {
                 updateUserCredits(data.remaining_credits);
+                fetchHistory();
             }
         } catch (err) {
             alert(`错误: ${err.message}`);
@@ -254,6 +276,21 @@ const MainApp = ({ t, token, user, updateUserCredits }) => {
                         {isLoading ? t.generatingButton : t.generateButton}
                     </button>
                 </form>
+                 {!isGuest && (
+                    <div className="mt-8 bg-gray-800 p-6 rounded-xl shadow-lg">
+                        <h3 className="text-xl font-bold mb-4">{t.historyTitle}</h3>
+                        <div className="max-h-96 overflow-y-auto pr-2">
+                           {history && history.map(item => (
+                               <div key={item.id} className="bg-gray-700 p-4 rounded-lg mb-3">
+                                   <p className="font-semibold truncate">{item.core_prompt}</p>
+                                   <p className="text-xs text-gray-400">{new Date(item.created_at).toLocaleString()}</p>
+                                   <button onClick={() => {setPlotPrompt(item.core_prompt); setCharacter1(item.character1_setting); setCharacter2(item.character2_setting);}} className="text-blue-400 hover:text-blue-300 text-xs mr-4">载入</button>
+                                   <button onClick={() => handleDeleteHistory(item.id)} className="text-red-400 hover:text-red-300 text-xs">{t.deleteButton}</button>
+                               </div>
+                           ))}
+                        </div>
+                    </div>
+                 )}
             </div>
             <div className="md:col-span-2 bg-gray-800 p-6 rounded-xl shadow-lg">
                 <div ref={outlineRef} className="prose prose-invert max-w-none prose-p:text-gray-300 prose-headings:text-white whitespace-pre-wrap">
