@@ -136,7 +136,7 @@ const translations = {
     loginToContinue: '登录 / 注册',
     error: '错误',
     success: '成功',
-    registerSuccess: '注册成功！请检查您的邮箱以激活账户。',
+    registerSuccess: '恭喜您注册成功',
     insufficientCredits: '创作点数不足，请充值。',
     notVerified: '您的账户尚未激活，请检查邮箱。',
     waitingForInspiration: '在这里等待你的灵感方舟起航…',
@@ -382,6 +382,21 @@ function App() {
   const [token, setToken] = useState(null);
   const [user, setUser] = useState(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
+  const [loadedCharacter1, setLoadedCharacter1] = useState('');
+  const [loadedCharacter2, setLoadedCharacter2] = useState('');
+  const [loadedPlotPrompt, setLoadedPlotPrompt] = useState('');
+
+  const onLoadHistory = (item) => {
+    const parseCharacterName = (fullCharacterString) => {
+      if (!fullCharacterString) return '';
+      const match = fullCharacterString.match(/^\((Male|Female|nonbinary|男|女|无性别)\)\s*(.*)/);
+      return match ? match[2] : fullCharacterString;
+    };
+
+    setLoadedCharacter1(parseCharacterName(item.character1));
+    setLoadedCharacter2(parseCharacterName(item.character2));
+    setLoadedPlotPrompt(item.core_prompt || '');
+  };
 
   // Simplified t function
   const t = (key) => {
@@ -448,9 +463,16 @@ function App() {
       <div className="bg-light-background dark:bg-dark-background min-h-screen text-light-text-primary dark:text-dark-text-primary transition-colors duration-300">
         {user ? (
           <>
-            <Header user={user} onLogout={handleLogout} />
+            <Header user={user} onLogout={handleLogout} onLoadHistory={onLoadHistory} />
             <main className="container mx-auto p-4">
-              <MainAppPage token={token} user={user} updateUserCredits={updateUserCredits} />
+              <MainAppPage
+                token={token}
+                user={user}
+                updateUserCredits={updateUserCredits}
+                loadedCharacter1={loadedCharacter1}
+                loadedCharacter2={loadedCharacter2}
+                loadedPlotPrompt={loadedPlotPrompt}
+              />
             </main>
           </>
         ) : (
@@ -462,7 +484,7 @@ function App() {
 }
 
 // --- 头部组件 (Header Component) ---
-const Header = ({ user, onLogout }) => {
+const Header = ({ user, onLogout, onLoadHistory }) => {
   const { theme, setTheme, lang, setLang, t } = useContext(AppContext);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   
@@ -517,7 +539,7 @@ const Header = ({ user, onLogout }) => {
           </div>
         </div>
       </header>
-      {isHistoryOpen && <HistoryModal onClose={() => setIsHistoryOpen(false)} />}
+      {isHistoryOpen && <HistoryModal onClose={() => setIsHistoryOpen(false)} onLoad={onLoadHistory} />}
     </>
   );
 };
@@ -643,7 +665,7 @@ const AuthPage = ({ onLoginSuccess }) => {
 };
 
 // --- 历史记录弹窗 (History Modal) ---
-const HistoryModal = ({ onClose }) => {
+const HistoryModal = ({ onClose, onLoad }) => {
     const { t } = useContext(AppContext);
     const [history, setHistory] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -659,6 +681,14 @@ const HistoryModal = ({ onClose }) => {
                     const data = await response.json();
                     // 按日期排序，最新的在前
                     setHistory(data.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)));
+                } else {
+                    console.error('Failed to fetch history with status:', response.status);
+                    try {
+                        const errorData = await response.json();
+                        console.error('Error data from backend:', errorData);
+                    } catch (jsonError) {
+                        console.error('Could not parse error JSON:', jsonError);
+                    }
                 }
             } catch (error) {
                 console.error('Failed to fetch history:', error);
@@ -705,6 +735,7 @@ const HistoryModal = ({ onClose }) => {
                                     <p className="font-semibold text-sm pr-4 flex-grow cursor-pointer" onClick={() => setExpandedId(expandedId === item.id ? null : item.id)}>{item.core_prompt}</p>
                                     <div className="flex items-center space-x-3 flex-shrink-0">
                                         <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{new Date(item.created_at).toLocaleString()}</p>
+                                        <button onClick={(e) => { e.stopPropagation(); onLoad(item); onClose(); }} className="text-blue-500 hover:text-blue-700 text-xs font-semibold mr-2">{t('loadButton')}</button>
                                         <button onClick={(e) => { e.stopPropagation(); handleDelete(item.id); }} className="text-red-500 hover:text-red-700 text-xs font-semibold">{t('deleteButton')}</button>
                                     </div>
                                 </div>
@@ -740,7 +771,7 @@ const stripMarkdown = (text) => {
 };
 
 // --- 主应用页面组件 (Main App Page Component) ---
-const MainAppPage = ({ token, user, updateUserCredits }) => {
+const MainAppPage = ({ token, user, updateUserCredits, loadedCharacter1, loadedCharacter2, loadedPlotPrompt }) => {
     const { t, lang } = useContext(AppContext);
     const [character1, setCharacter1] = useState('');
     const [gender1, setGender1] = useState('male');
@@ -756,6 +787,12 @@ const MainAppPage = ({ token, user, updateUserCredits }) => {
     const [isCopied, setIsCopied] = useState(false); // State for copy button feedback
     
     const outlineRef = useRef(null);
+
+    useEffect(() => {
+        setCharacter1(loadedCharacter1);
+        setCharacter2(loadedCharacter2);
+        setPlotPrompt(loadedPlotPrompt);
+    }, [loadedCharacter1, loadedCharacter2, loadedPlotPrompt]);
 
     const langCodeMapping = { 'en': 'en', 'zh_CN': 'zh-CN', 'zh_TW': 'zh-TW' };
     
