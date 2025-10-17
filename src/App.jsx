@@ -385,6 +385,7 @@ function App() {
   const [loadedCharacter1, setLoadedCharacter1] = useState('');
   const [loadedCharacter2, setLoadedCharacter2] = useState('');
   const [loadedPlotPrompt, setLoadedPlotPrompt] = useState('');
+  const [loadedOutline, setLoadedOutline] = useState('');
 
   const onLoadHistory = (item) => {
     const parseCharacterName = (fullCharacterString) => {
@@ -396,6 +397,7 @@ function App() {
     setLoadedCharacter1(parseCharacterName(item.character1));
     setLoadedCharacter2(parseCharacterName(item.character2));
     setLoadedPlotPrompt(item.core_prompt || '');
+    setLoadedOutline(item.generated_outline || '');
   };
 
   // Simplified t function
@@ -463,7 +465,7 @@ function App() {
       <div className="bg-light-background dark:bg-dark-background min-h-screen text-light-text-primary dark:text-dark-text-primary transition-colors duration-300">
         {user ? (
           <>
-            <Header user={user} onLogout={handleLogout} onLoadHistory={onLoadHistory} />
+            <Header user={user} onLogout={handleLogout} onLoadHistory={onLoadHistory} token={token} />
             <main className="container mx-auto p-4">
               <MainAppPage
                 token={token}
@@ -472,6 +474,7 @@ function App() {
                 loadedCharacter1={loadedCharacter1}
                 loadedCharacter2={loadedCharacter2}
                 loadedPlotPrompt={loadedPlotPrompt}
+                loadedOutline={loadedOutline}
               />
             </main>
           </>
@@ -484,7 +487,7 @@ function App() {
 }
 
 // --- 头部组件 (Header Component) ---
-const Header = ({ user, onLogout, onLoadHistory }) => {
+const Header = ({ user, onLogout, onLoadHistory, token }) => {
   const { theme, setTheme, lang, setLang, t } = useContext(AppContext);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   
@@ -539,7 +542,7 @@ const Header = ({ user, onLogout, onLoadHistory }) => {
           </div>
         </div>
       </header>
-      {isHistoryOpen && <HistoryModal onClose={() => setIsHistoryOpen(false)} onLoad={onLoadHistory} />}
+      {isHistoryOpen && <HistoryModal onClose={() => setIsHistoryOpen(false)} onLoad={onLoadHistory} token={token} />}
     </>
   );
 };
@@ -665,33 +668,38 @@ const AuthPage = ({ onLoginSuccess }) => {
 };
 
 // --- 历史记录弹窗 (History Modal) ---
-const HistoryModal = ({ onClose, onLoad }) => {
+const HistoryModal = ({ onClose, onLoad, token }) => {
     const { t } = useContext(AppContext);
     const [history, setHistory] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [expandedId, setExpandedId] = useState(null);
-    const token = localStorage.getItem('token');
+    const [error, setError] = useState(null);
 
     useEffect(() => {
         const fetchHistory = async () => {
-            if (!token) { setIsLoading(false); return; }
+            setIsLoading(true);
+            setError(null);
+            if (!token) { 
+                setHistory([]);
+                setIsLoading(false); 
+                return; 
+            }
             try {
                 const response = await fetch(API_ENDPOINTS.history, { headers: { 'Authorization': `Bearer ${token}` } });
                 if (response.ok) {
                     const data = await response.json();
-                    // 按日期排序，最新的在前
                     setHistory(data.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)));
                 } else {
-                    console.error('Failed to fetch history with status:', response.status);
-                    try {
-                        const errorData = await response.json();
-                        console.error('Error data from backend:', errorData);
-                    } catch (jsonError) {
-                        console.error('Could not parse error JSON:', jsonError);
-                    }
+                    const errorInfo = `Error: ${response.status} ${response.statusText}`;
+                    setError(errorInfo);
+                    console.error(errorInfo);
+                    setHistory([]);
                 }
-            } catch (error) {
-                console.error('Failed to fetch history:', error);
+            } catch (err) {
+                const errorInfo = `Network Error: ${err.message}`;
+                setError(errorInfo);
+                console.error(errorInfo);
+                setHistory([]);
             } finally {
                 setIsLoading(false);
             }
@@ -728,28 +736,38 @@ const HistoryModal = ({ onClose, onLoad }) => {
                     <button onClick={onClose} className="text-light-text-secondary dark:text-dark-text-secondary hover:text-light-text-primary dark:hover:text-dark-text-primary text-2xl leading-none">&times;</button>
                 </div>
                 <div className="p-6 overflow-y-auto space-y-4">
-                    {isLoading ? <p>{t('loading')}</p> : history.length > 0 ? history.map(item => (
-                         <div key={item.id} className="bg-light-background dark:bg-dark-background/50 rounded-lg transition-shadow hover:shadow-md">
-                            <div className="p-4">
-                                <div className="flex justify-between items-start mb-2">
-                                    <p className="font-semibold text-sm pr-4 flex-grow cursor-pointer" onClick={() => setExpandedId(expandedId === item.id ? null : item.id)}>{item.core_prompt}</p>
-                                    <div className="flex items-center space-x-3 flex-shrink-0">
-                                        <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{new Date(item.created_at).toLocaleString()}</p>
-                                        <button onClick={(e) => { e.stopPropagation(); onLoad(item); onClose(); }} className="text-blue-500 hover:text-blue-700 text-xs font-semibold mr-2">{t('loadButton')}</button>
-                                        <button onClick={(e) => { e.stopPropagation(); handleDelete(item.id); }} className="text-red-500 hover:text-red-700 text-xs font-semibold">{t('deleteButton')}</button>
-                                    </div>
-                                </div>
-                                {expandedId === item.id && (
-                                    <div className="border-t border-light-border dark:border-dark-border mt-2 pt-3">
-                                        <div 
-                                            className="prose prose-sm dark:prose-invert max-w-none prose-p:text-light-text-primary dark:prose-p:text-dark-text-primary prose-headings:text-light-text-primary dark:prose-headings:text-dark-text-primary whitespace-pre-wrap leading-relaxed"
-                                            dangerouslySetInnerHTML={{ __html: processAIOutput(item.outline || t('waitingForInspiration')) }}
-                                        />
-                                    </div>
-                                )}
-                            </div>
+                    {isLoading ? (
+                        <p>{t('loading')}</p>
+                    ) : error ? (
+                        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+                            <strong className="font-bold">Failed to load history! </strong>
+                            <span className="block sm:inline">{error}</span>
                         </div>
-                    )) : <p className="text-center text-light-text-secondary dark:text-dark-text-secondary">{t('noHistoryFound')}</p>}
+                    ) : history.length > 0 ? (
+                        history.map(item => (
+                             <div key={item.id} className="bg-light-background dark:bg-dark-background/50 rounded-lg transition-shadow hover:shadow-md">
+                                <div className="p-4">
+                                    <div className="flex justify-between items-start mb-2">
+                                        <p className="font-semibold text-sm pr-4 flex-grow cursor-pointer" onClick={() => setExpandedId(expandedId === item.id ? null : item.id)}>{item.core_prompt}</p>
+                                        <div className="flex items-center space-x-3 flex-shrink-0">
+                                            <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">{new Date(item.created_at).toLocaleString()}</p>
+                                            <button onClick={(e) => { e.stopPropagation(); onLoad(item); onClose(); }} className="text-blue-500 hover:text-blue-700 text-xs font-semibold mr-2">{t('loadButton')}</button>
+                                            <button onClick={(e) => { e.stopPropagation(); handleDelete(item.id); }} className="text-red-500 hover:text-red-700 text-xs font-semibold">{t('deleteButton')}</button>
+                                        </div>
+                                    </div>
+                                    {expandedId === item.id && (
+                                        <div className="border-t border-light-border dark:border-dark-border mt-2 pt-3">
+                                            <div className="whitespace-pre-wrap text-sm leading-relaxed">
+                                                {item.generated_outline || t('waitingForInspiration')}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        ))
+                    ) : (
+                        <p className="text-center text-light-text-secondary dark:text-dark-text-secondary">{t('noHistoryFound')}</p>
+                    )}
                 </div>
                  <div className="p-4 border-t border-light-border dark:border-dark-border text-right">
                     <button onClick={onClose} className="bg-light-primary dark:bg-dark-primary text-white font-bold py-2 px-4 rounded-lg text-sm">{t('closeButton')}</button>
@@ -771,7 +789,7 @@ const stripMarkdown = (text) => {
 };
 
 // --- 主应用页面组件 (Main App Page Component) ---
-const MainAppPage = ({ token, user, updateUserCredits, loadedCharacter1, loadedCharacter2, loadedPlotPrompt }) => {
+const MainAppPage = ({ token, user, updateUserCredits, loadedCharacter1, loadedCharacter2, loadedPlotPrompt, loadedOutline }) => {
     const { t, lang } = useContext(AppContext);
     const [character1, setCharacter1] = useState('');
     const [gender1, setGender1] = useState('male');
@@ -792,7 +810,8 @@ const MainAppPage = ({ token, user, updateUserCredits, loadedCharacter1, loadedC
         setCharacter1(loadedCharacter1);
         setCharacter2(loadedCharacter2);
         setPlotPrompt(loadedPlotPrompt);
-    }, [loadedCharacter1, loadedCharacter2, loadedPlotPrompt]);
+        setOutline(loadedOutline);
+    }, [loadedCharacter1, loadedCharacter2, loadedPlotPrompt, loadedOutline]);
 
     const langCodeMapping = { 'en': 'en', 'zh_CN': 'zh-CN', 'zh_TW': 'zh-TW' };
     
@@ -828,10 +847,21 @@ const MainAppPage = ({ token, user, updateUserCredits, loadedCharacter1, loadedC
             if (outline) {
               outlineRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }
+        } else if (outline) { // If parsing fails, show the raw outline
+            setDisplayPages([{
+                type: 'main_section',
+                title: t('copyOutline'), // Using a generic title
+                text: outline
+            }]);
+            setCurrentPage(0);
+            setShowCard(true);
+            if (outline) {
+              outlineRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
         } else {
             setDisplayPages([]); // Clear pages if there's no outline
         }
-    }, [parsedOutline, outline]);
+    }, [parsedOutline, outline, t]);
 
 
     const handleNavigation = (direction) => {
