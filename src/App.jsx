@@ -36,7 +36,7 @@ const customSelectStyles = `
 
 // --- 配置 (Configuration) ---
 // 直接使用你提供的最新后端地址
-const API_BASE_URL = 'https://plot-ark-backend-885033581194.us-central1.run.app';
+const API_BASE_URL = 'https://api.plot-ark.com';
 
 
 const API_ENDPOINTS = {
