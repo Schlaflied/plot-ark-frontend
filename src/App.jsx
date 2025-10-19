@@ -16,23 +16,23 @@ const customSelectStyles = `
 `;
 
 // --- JWT解码辅助函数 (JWT Decode Helper) ---
-// const decodeJwt = (token) => {
-//   if (token && token.startsWith('guest-')) {
-//     return { is_guest: true, exp: Date.now() / 1000 + 3600 };
-//   }
-//   try {
-//     const base64Url = token.split('.')[1];
-//     if (!base64Url) return null;
-//     const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-//     const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
-//         return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-//     }).join(''));
-//     return JSON.parse(jsonPayload);
-//   } catch (e) {
-//     console.error("Failed to decode JWT:", e);
-//     return null;
-//   }
-// };
+const decodeJwt = (token) => {
+  if (token && token.startsWith('guest-')) {
+    return { is_guest: true, exp: Date.now() / 1000 + 3600 };
+  }
+  try {
+    const base64Url = token.split('.')[1];
+    if (!base64Url) return null;
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+    }).join(''));
+    return JSON.parse(jsonPayload);
+  } catch (e) {
+    console.error("Failed to decode JWT:", e);
+    return null;
+  }
+};
 
 // --- 配置 (Configuration) ---
 // 直接使用你提供的最新后端地址
@@ -378,7 +378,7 @@ const HistoryIcon = ({ className }) => <svg className={className} xmlns="http://
 function App() {
   // Simplified state initializers
   const [theme, setTheme] = useState('dark');
-  const [lang, setLang] = useState('zh_CN');
+  const [lang, setLang] = useState('en');
   const [token, setToken] = useState(null);
   const [user, setUser] = useState(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
@@ -426,13 +426,28 @@ function App() {
   }, [lang]);
 
   useEffect(() => {
-    // Simulate auth check
     const storedToken = localStorage.getItem('token');
     if (storedToken) {
-      // In a real app, you'd validate the token with your backend
-      // For now, we'll just assume a token means logged in
-      setUser({ email: 'user@example.com', credits: 10, is_guest: false }); // Placeholder user
-      setToken(storedToken);
+      const decodedToken = decodeJwt(storedToken);
+      const currentTime = Date.now() / 1000; // current time in seconds
+
+      if (decodedToken && decodedToken.exp > currentTime) {
+        // Token is valid and not expired
+        // Note: In a real app, you'd fetch user details from backend using this token
+        // For now, we'll use a placeholder user, potentially with details from decodedToken
+        setUser({
+          email: decodedToken.email || 'user@example.com', // Use email from token if available
+          credits: decodedToken.credits || 10, // Use credits from token if available
+          is_guest: decodedToken.is_guest || false,
+          is_verified: decodedToken.is_verified || true // Assuming verified if token is valid
+        });
+        setToken(storedToken);
+      } else {
+        // Token is expired or invalid, clear it
+        localStorage.removeItem('token');
+        setToken(null);
+        setUser(null);
+      }
     }
     setIsAuthReady(true);
   }, []);
