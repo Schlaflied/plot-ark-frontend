@@ -490,6 +490,7 @@ function App() {
                 loadedCharacter2={loadedCharacter2}
                 loadedPlotPrompt={loadedPlotPrompt}
                 loadedOutline={loadedOutline}
+                onShowAuthPage={handleLogout}
               />
             </main>
           </>
@@ -804,7 +805,7 @@ const stripMarkdown = (text) => {
 };
 
 // --- 主应用页面组件 (Main App Page Component) ---
-const MainAppPage = ({ token, user, updateUserCredits, loadedCharacter1, loadedCharacter2, loadedPlotPrompt, loadedOutline }) => {
+const MainAppPage = ({ token, user, updateUserCredits, loadedCharacter1, loadedCharacter2, loadedPlotPrompt, loadedOutline, onShowAuthPage }) => {
     const { t, lang } = useContext(AppContext);
     const [character1, setCharacter1] = useState('');
     const [gender1, setGender1] = useState('male');
@@ -973,10 +974,20 @@ const MainAppPage = ({ token, user, updateUserCredits, loadedCharacter1, loadedC
                     </div>
 
                     <div className="mt-6">
-                        <button type="submit" disabled={isLoading} className="w-full bg-light-primary hover:bg-light-primary-hover dark:bg-dark-primary dark:hover:bg-dark-primary-hover text-white font-bold py-3 px-4 rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-wait flex items-center justify-center">
-                            {isLoading && <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>}
-                            {isLoading ? t('generatingButton') : t('generateButton')}
-                        </button>
+                        {user.is_guest ? (
+                            <button
+                                type="button"
+                                onClick={onShowAuthPage} // Call onShowAuthPage (which is handleLogout)
+                                className="w-full bg-light-primary hover:bg-light-primary-hover dark:bg-dark-primary dark:hover:bg-dark-primary-hover text-white font-bold py-3 px-4 rounded-lg transition-colors duration-200 flex items-center justify-center"
+                            >
+                                {t('loginToContinue')}
+                            </button>
+                        ) : (
+                            <button type="submit" disabled={isLoading} className="w-full bg-light-primary hover:bg-light-primary-hover dark:bg-dark-primary dark:hover:bg-dark-primary-hover text-white font-bold py-3 px-4 rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-wait flex items-center justify-center">
+                                {isLoading && <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>}
+                                {isLoading ? t('generatingButton') : t('generateButton')}
+                            </button>
+                        )}
                     </div>
                      {error && <div className="mt-4 bg-red-500/10 border border-light-error/30 dark:border-dark-error/30 text-light-error dark:text-dark-error px-4 py-3 rounded-lg text-center text-sm" role="alert">{error}</div>}
                 </form>
