@@ -101,6 +101,9 @@ const translations = {
     loadingButton: '...', 
     copyOutline: 'Copy Full Outline',
     copied: 'Copied!',
+    resendVerification: 'Resend Verification Email', // New translation
+    resendVerificationSuccess: 'Verification email sent! Please check your inbox.', // New translation
+    resendVerificationFailed: 'Resend failed, please try again later.', // New translation
   },
   zh_CN: {
     title: '灵感方舟',
@@ -155,6 +158,9 @@ const translations = {
     loadingButton: '...', 
     copyOutline: '复制完整大纲',
     copied: '已复制!',
+    resendVerification: '重新发送验证邮件', // New translation
+    resendVerificationSuccess: '验证邮件已发送，请查收您的邮箱。', // New translation
+    resendVerificationFailed: '重新发送失败，请稍后再试。', // New translation
   },
   zh_TW: {
     title: '靈感方舟',
@@ -195,10 +201,6 @@ const translations = {
     notVerified: '您的帳戶尚未啟用，請檢查郵箱。',
     genericError: '發生未知錯誤。',
     failedToFetch: '請求失敗',
-    waitingForInspiration: '在這裡等待你的靈感方舟啟航…',
-    inspirationFlowing: '靈感正在迸發…',
-    emailExists: '該郵箱已被註冊。',
-    invalidCredentials: '郵箱或密碼錯誤。',
     plotPromptLabel: '核心梗 / 場景',
     backToLogin: '已有帳號？返回登入',
     orSeparator: '或',
@@ -209,6 +211,9 @@ const translations = {
     loadingButton: '...', 
     copyOutline: '複製完整大綱',
     copied: '已複製!',
+    resendVerification: '重新發送驗證郵件', // New translation
+    resendVerificationSuccess: '驗證郵件已發送，請查收您的郵箱。', // New translation
+    resendVerificationFailed: '重新發送失敗，請稍後再試。', // New translation
   },
 };
 
@@ -572,20 +577,47 @@ const AuthPage = ({ onLoginSuccess }) => {
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isRegisterMode, setIsRegisterMode] = useState(false);
+  const [showResendButton, setShowResendButton] = useState(false); // New state
 
   const toggleTheme = () => setTheme(theme === 'dark' ? 'light' : 'dark');
   const langOptions = { 'zh_CN': '简体', 'zh_TW': '繁體', 'en': 'EN' };
 
   const handleApiCall = async (apiFunc, successCallback) => {
-    setError(''); setMessage(''); setIsLoading(true);
+    setError(''); setMessage(''); setIsLoading(true); setShowResendButton(false); // Reset on new attempt
     try {
       const response = await apiFunc();
       const data = await response.json();
       if (!response.ok) {
-        const errorKey = data.error === 'email_exists' ? 'emailExists' : data.error === 'invalid_credentials' ? 'invalidCredentials' : 'genericError';
+        const errorKey = data.error === 'email_exists' ? 'emailExists' : data.error === 'invalid_credentials' ? 'invalidCredentials' : data.error === 'not_verified' ? 'notVerified' : 'genericError'; // Added 'not_verified'
         throw new Error(t(errorKey));
       }
       successCallback(data);
+    } catch (err) {
+      setError(err.message);
+      if (err.message === t('notVerified')) { // Check if the error is 'notVerified'
+        setShowResendButton(true);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResendVerification = async () => {
+    setIsLoading(true);
+    setError('');
+    setMessage('');
+    try {
+      const response = await fetch(API_ENDPOINTS.resendVerification, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }), // Use the email from the state
+      });
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || t('genericError'));
+      }
+      setMessage(t('registerSuccess')); // Reusing registerSuccess for now, or add a new translation
+      setShowResendButton(false); // Hide button after sending
     } catch (err) {
       setError(err.message);
     } finally {
@@ -651,7 +683,18 @@ const AuthPage = ({ onLoginSuccess }) => {
             <div>
                 <h2 className="text-center text-2xl font-bold">{isRegisterMode ? t('registerButton') : t('authWelcome')}</h2>
             </div>
-            {error && <div className="bg-red-500/10 border border-light-error/30 dark:border-dark-error/30 text-light-error dark:text-dark-error px-4 py-3 rounded-lg text-center text-sm" role="alert">{error}</div>}
+            {error && <div className="bg-red-500/10 border border-light-error/30 dark:border-dark-error/30 text-light-error dark:text-dark-error px-4 py-3 rounded-lg text-center text-sm" role="alert">
+                {error}
+                {showResendButton && error === t('notVerified') && (
+                    <button
+                        onClick={handleResendVerification}
+                        disabled={isLoading}
+                        className="mt-2 w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 transition-colors"
+                    >
+                        {isLoading ? t('loadingButton') : t('resendVerification')}
+                    </button>
+                )}
+            </div>}
             {message && <div className="bg-green-500/10 border border-light-success/30 dark:border-dark-success/30 text-light-success dark:text-dark-success px-4 py-3 rounded-lg text-center text-sm" role="alert">{message}</div>}
             <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
                 <div className="rounded-md -space-y-px">
